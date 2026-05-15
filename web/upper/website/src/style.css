@@ -1,0 +1,286 @@
+/* 字体导入 */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局科幻风格重写 */
+:root {
+  /* 科幻配色方案 */
+  --cyber-primary: #00ffff;
+  --cyber-secondary: #00d4ff;
+  --cyber-success: #00ff88;
+  --cyber-warning: #ffaa00;
+  --cyber-danger: #ff3366;
+  --cyber-info: #00d4ff;
+  --cyber-bg-primary: #0c1426;
+  --cyber-bg-secondary: #1a1f35;
+  --cyber-bg-card: rgba(12, 20, 38, 0.9);
+  --cyber-text-primary: #ffffff;
+  --cyber-text-secondary: #b8c5d6;
+  --cyber-border: rgba(0, 255, 255, 0.3);
+  --cyber-border-active: rgba(0, 255, 255, 0.8);
+  --cyber-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --cyber-glow: 0 0 20px rgba(0, 255, 255, 0.3);
+}
+/* 全局重置 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Exo 2', 'Microsoft YaHei', sans-serif;
+  background: var(--cyber-bg-primary);
+  color: var(--cyber-text-primary);
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+#app {
+  min-height: 100vh;
+  position: relative;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, var(--cyber-primary), var(--cyber-success));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, var(--cyber-secondary), var(--cyber-primary));
+}
+
+/* Firefox滚动条 */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyber-primary) rgba(0, 0, 0, 0.1);
+}
+
+/* 选择文本样式 */
+::selection {
+  background: rgba(0, 255, 255, 0.3);
+  color: var(--cyber-text-primary);
+}
+
+::-moz-selection {
+  background: rgba(0, 255, 255, 0.3);
+  color: var(--cyber-text-primary);
+}
+
+/* Element Plus组件全局样式覆盖 */
+.el-button--primary {
+  --el-color-primary: var(--cyber-primary);
+  --el-color-primary-light-3: rgba(0, 255, 255, 0.7);
+  --el-color-primary-light-5: rgba(0, 255, 255, 0.5);
+  --el-color-primary-light-7: rgba(0, 255, 255, 0.3);
+  --el-color-primary-light-8: rgba(0, 255, 255, 0.2);
+  --el-color-primary-light-9: rgba(0, 255, 255, 0.1);
+  border: none;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+.el-button--success {
+  --el-color-success: var(--cyber-success);
+  --el-color-success-light-3: rgba(0, 255, 136, 0.7);
+  --el-color-success-light-5: rgba(0, 255, 136, 0.5);
+  --el-color-success-light-7: rgba(0, 255, 136, 0.3);
+  --el-color-success-light-8: rgba(0, 255, 136, 0.2);
+  --el-color-success-light-9: rgba(0, 255, 136, 0.1);
+}
+
+.el-button--danger {
+  --el-color-danger: var(--cyber-danger);
+  --el-color-danger-light-3: rgba(255, 51, 102, 0.7);
+  --el-color-danger-light-5: rgba(255, 51, 102, 0.5);
+  --el-color-danger-light-7: rgba(255, 51, 102, 0.3);
+  --el-color-danger-light-8: rgba(255, 51, 102, 0.2);
+  --el-color-danger-light-9: rgba(255, 51, 102, 0.1);
+}
+
+.el-button--warning {
+  --el-color-warning: var(--cyber-warning);
+  --el-color-warning-light-3: rgba(255, 170, 0, 0.7);
+  --el-color-warning-light-5: rgba(255, 170, 0, 0.5);
+  --el-color-warning-light-7: rgba(255, 170, 0, 0.3);
+  --el-color-warning-light-8: rgba(255, 170, 0, 0.2);
+  --el-color-warning-light-9: rgba(255, 170, 0, 0.1);
+}
+
+/* 科幻按钮悬停效果 */
+.el-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cyber-glow);
+}
+
+.el-button:active {
+  transform: translateY(0);
+}
+
+/* Element Plus卡片样式 */
+.el-card {
+  background: var(--cyber-bg-card);
+  border: 1px solid var(--cyber-border);
+  border-radius: 15px;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--cyber-shadow);
+  transition: all 0.3s ease;
+}
+
+.el-card:hover {
+  border-color: var(--cyber-border-active);
+  box-shadow: var(--cyber-glow), var(--cyber-shadow);
+  transform: translateY(-2px);
+}
+
+.el-card__header {
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--cyber-border);
+  color: var(--cyber-text-primary);
+  font-weight: 600;
+}
+
+/* 进度条样式 */
+.el-progress-bar__outer {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-radius: 10px !important;
+}
+
+.el-progress-bar__inner {
+  border-radius: 10px !important;
+  background: linear-gradient(90deg, var(--cyber-primary), var(--cyber-success)) !important;
+}
+
+/* 开关样式 */
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--cyber-success) !important;
+}
+
+.el-switch__core {
+  border: 2px solid var(--cyber-border);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* 标签样式 */
+.el-tag {
+  border: 1px solid;
+  backdrop-filter: blur(5px);
+  font-weight: 500;
+}
+
+.el-tag.el-tag--success {
+  background: rgba(0, 255, 136, 0.2);
+  border-color: var(--cyber-success);
+  color: var(--cyber-success);
+}
+
+.el-tag.el-tag--danger {
+  background: rgba(255, 51, 102, 0.2);
+  border-color: var(--cyber-danger);
+  color: var(--cyber-danger);
+}
+
+.el-tag.el-tag--warning {
+  background: rgba(255, 170, 0, 0.2);
+  border-color: var(--cyber-warning);
+  color: var(--cyber-warning);
+}
+
+/* 消息提示样式 */
+.el-message {
+  background: var(--cyber-bg-card);
+  border: 1px solid var(--cyber-border);
+  border-radius: 10px;
+  backdrop-filter: blur(15px);
+  color: var(--cyber-text-primary);
+}
+
+.el-message.el-message--success {
+  border-color: var(--cyber-success);
+}
+
+.el-message.el-message--error {
+  border-color: var(--cyber-danger);
+}
+
+.el-message.el-message--warning {
+  border-color: var(--cyber-warning);
+}
+
+.el-message.el-message--info {
+  border-color: var(--cyber-info);
+}
+
+/* 工具类 */
+.cyber-text-glow {
+  text-shadow: 0 0 10px currentColor;
+}
+
+.cyber-border-glow {
+  box-shadow: 0 0 10px currentColor;
+}
+
+.cyber-hover-lift {
+  transition: transform 0.3s ease;
+}
+
+.cyber-hover-lift:hover {
+  transform: translateY(-3px);
+}
+
+/* 动画关键帧 */
+@keyframes cyber-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes cyber-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 20px currentColor;
+  }
+}
+
+.cyber-pulse {
+  animation: cyber-pulse 2s ease-in-out infinite;
+}
+
+.cyber-glow-animation {
+  animation: cyber-glow 2s ease-in-out infinite;
+}
+
+/* 响应式工具类 */
+@media (max-width: 768px) {
+  .mobile-hide {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .desktop-hide {
+    display: none !important;
+  }
+}

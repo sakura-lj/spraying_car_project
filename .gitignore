@@ -1,0 +1,65 @@
+# === 构建产物 ===
+**/build/
+**/dist/
+**/devel/
+**/obj/
+**/DebugConfig/
+**/RTE/
+*.axf
+*.hex
+*.o
+*.d
+*.crf
+*.lnp
+*.dep
+*.iex
+*.htm
+*.map
+*.lst
+*.bin
+*.elf
+*.uvguix.*
+JLinkLog.txt
+
+# === 依赖 ===
+**/node_modules/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# === ROS ===
+**/catkin_generated/
+**/CMakeFiles/
+**/cmake_install.cmake
+**/CTestTestfile.cmake
+**/Makefile
+**/build/
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === 大文件 ===
+**/PCD/*.pcd
+**/Log/**/*.csv
+**/bags/*.bag
+
+# === 敏感配置 ===
+**/frpc.ini
+deploy/frpc.ini
+web/upper/deploy/frpc.ini
+
+# === 操作系统 ===
+.DS_Store
+Thumbs.db
+*.log
+
+# === STM32 ===
+*.uvguix.*

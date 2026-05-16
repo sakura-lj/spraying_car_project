@@ -1,0 +1,15 @@
+# Project-level L1RM/Unitree LiDAR settings for spraying_car_slam.
+# These values document the intended vehicle integration. The active launch file
+# loads the upstream Unitree config and overrides the same values with launch args.
+
+lidar_port: /dev/ttyUSB0
+lidar_topic: /unilidar/cloud
+imu_topic: /unilidar/imu
+lidar_frame: lidar_link
+imu_frame: imu_link
+
+notes:
+  - "L1RM may appear as /dev/ttyUSB0 by default; verify on the Orange Pi before launching."
+  - "GPS may also appear as /dev/ttyUSB0, so LiDAR and GPS can conflict."
+  - "Use udev rules later to create stable names such as /dev/spraying_car_lidar and /dev/spraying_car_gps."
+  - "The expected standard TF chain is base_link -> lidar_link -> imu_link."

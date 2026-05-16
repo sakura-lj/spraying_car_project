@@ -15,6 +15,7 @@
 #include "OLED.h"  // 添加OLED头文件
 #include <string.h>   // strlen()
 #include <stdio.h>    // snprintf()
+#include <stdint.h>
 
 // 调试模式控制宏 - 设置为1启用OLED调试显示，设置为0禁用OLED
 #define DEBUG_MODE 1  // 1: 调试模式(使用OLED), 0: 上机模式(不使用OLED)
@@ -78,6 +79,11 @@
 #define CMD_TURN_CONTROL      0x04  // 转向控制命令
 #define CMD_STATUS_QUERY      0xFF  // 状态查询命令
 #define CMD_STATUS_RESPONSE   0x05  // 状态响应命令
+#define CMD_EXT_STATUS_QUERY  0x06  // 扩展状态查询命令
+#define CMD_EXT_STATUS_RESPONSE 0x07 // 扩展状态响应命令
+
+#define EXT_STATUS_PROTOCOL_VERSION 1
+#define EXT_STATUS_PAYLOAD_LEN 26
 
 // 数据解析器与接收变量
 PacketParser parser;
@@ -94,6 +100,29 @@ static uint8_t txPendingBuffer[TXBUFFER_LEN];
 static volatile uint8_t txBusy = 0;
 static volatile uint8_t txPending = 0;
 static volatile uint16_t txPendingLength = 0;
+
+static void put_i32_le(uint8_t* data, uint8_t offset, int32_t value)
+{
+    uint32_t raw = (uint32_t)value;
+    data[offset] = (uint8_t)(raw & 0xFF);
+    data[offset + 1] = (uint8_t)((raw >> 8) & 0xFF);
+    data[offset + 2] = (uint8_t)((raw >> 16) & 0xFF);
+    data[offset + 3] = (uint8_t)((raw >> 24) & 0xFF);
+}
+
+static void put_u16_le(uint8_t* data, uint8_t offset, uint16_t value)
+{
+    data[offset] = (uint8_t)(value & 0xFF);
+    data[offset + 1] = (uint8_t)((value >> 8) & 0xFF);
+}
+
+static void put_u32_le(uint8_t* data, uint8_t offset, uint32_t value)
+{
+    data[offset] = (uint8_t)(value & 0xFF);
+    data[offset + 1] = (uint8_t)((value >> 8) & 0xFF);
+    data[offset + 2] = (uint8_t)((value >> 16) & 0xFF);
+    data[offset + 3] = (uint8_t)((value >> 24) & 0xFF);
+}
 
 // 车辆状态控制变量
 extern volatile uint8_t direction_state; // 方向状态：0-停止，1-前进，2-后退
@@ -354,6 +383,12 @@ static void processData(uint8_t type, uint8_t* data, int length)
             DEBUG_OLED_ShowString(0, 24, "Sending...");
             break;
 
+        case CMD_EXT_STATUS_QUERY: // 扩展状态查询命令
+            send_ext_status_data(); // 发送扩展状态数据
+            DEBUG_OLED_ShowString(0, 12, "EXT STATUS");
+            DEBUG_OLED_ShowString(0, 24, "Sending...");
+            break;
+
         default:
             DEBUG_OLED_ShowString(0, 12, "UNKNOWN CMD:");
             DEBUG_OLED_ShowHexNum(0, 24, type, 2);
@@ -506,6 +541,53 @@ void send_status_data(void) {
         DEBUG_OLED_ShowString(0, 0, "PACK ERROR:");
         DEBUG_OLED_ShowString(0, 12, "Failed to pack");
         DEBUG_OLED_ShowString(0, 24, "status data");
+        DEBUG_OLED_Update();
+    }
+}
+
+/**
+ * @brief  发送扩展状态数据到上位机
+ * @retval 无
+ */
+void send_ext_status_data(void) {
+    uint8_t data[EXT_STATUS_PAYLOAD_LEN];
+
+    memset(data, 0, sizeof(data));
+    data[0] = EXT_STATUS_PROTOCOL_VERSION;
+    data[1] = spray_state;                  // 喷洒状态：0-关闭，1-开启
+    data[2] = vehicle_speed;                // 车辆速度档位：1-102
+    data[3] = direction_state;              // 方向状态：0-停止，1-前进，2-后退
+    data[4] = is_open;                      // 电源状态：0-关闭，1-开启
+    data[5] = get_turn_cmd_position();      // 转向命令位置：1-101，51中位
+    put_i32_le(data, 6, get_turn_target_encoder());
+    put_i32_le(data, 10, get_turn_encoder_position());
+    data[14] = get_control_mode();          // 0-遥控器控制，1-串口控制
+    data[15] = 0;                           // safety_state: 当前无独立硬件急停输入
+    put_u16_le(data, 16, get_fault_code()); // 当前无故障码系统，返回0
+    put_u16_le(data, 18, get_battery_mv()); // 当前无电池ADC采集，返回0
+    put_u16_le(data, 20, 0);                // reserved_u16
+    put_u32_le(data, 22, 0);                // reserved_u32
+
+    uint8_t packet[BUFFER_SIZE + 6];
+    int length = packData(packet, CMD_EXT_STATUS_RESPONSE, data, EXT_STATUS_PAYLOAD_LEN);
+
+    if (length > 0) {
+        int result = sendData(packet, length);
+        if (result > 0) {
+            DEBUG_OLED_ShowString(0, 48, "TX EXT: OK");
+            DEBUG_OLED_UpdateArea(0, 48, 128, 12);
+        } else {
+            DEBUG_OLED_Clear();
+            DEBUG_OLED_ShowString(0, 0, "TX ERROR:");
+            DEBUG_OLED_ShowString(0, 12, "Failed to send");
+            DEBUG_OLED_ShowString(0, 24, "ext status");
+            DEBUG_OLED_Update();
+        }
+    } else {
+        DEBUG_OLED_Clear();
+        DEBUG_OLED_ShowString(0, 0, "PACK ERROR:");
+        DEBUG_OLED_ShowString(0, 12, "Failed to pack");
+        DEBUG_OLED_ShowString(0, 24, "ext status");
         DEBUG_OLED_Update();
     }
 }

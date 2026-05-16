@@ -9,6 +9,19 @@ import cv2
 import numpy as np
 from flask import Flask, render_template, request, jsonify, Response, send_from_directory
 from datetime import datetime
+from vehicle_protocol import (
+    READ_MAX_SIZE,
+    PacketParser,
+    build_direction_packet,
+    build_ext_status_query_packet,
+    build_speed_packet,
+    build_spray_packet,
+    build_status_query_packet,
+    build_turn_packet,
+    pack_packet,
+    parse_ext_status_response,
+    parse_status_response,
+)
 
 # 配置日志
 logging.basicConfig(
@@ -46,22 +59,6 @@ except ImportError:
             raise Exception("pyserial库未安装")
     serial = MockSerial()
     SerialException = Exception
-
-# 定义通信协议常量
-PACKET_HEAD = 0xAA  # 数据包头部标识
-PACKET_TAIL = 0x55  # 数据包尾部标识
-BUFFER_SIZE = 256   # 缓冲区大小
-READ_MAX_SIZE = 256  # 最大读取大小
-RXBUFFER_LEN = 128  # 与 STM32 USART1 DMA 接收缓冲区保持一致
-MAX_PACKET_DATA_LEN = 127  # Python 接收侧允许的最大 data 长度
-
-# 定义命令类型
-CMD_SPRAY_CONTROL = 0x01    # 喷药控制
-CMD_SPEED_CONTROL = 0x02    # 速度控制
-CMD_DIRECTION_CONTROL = 0x03  # 方向控制
-CMD_TURN_CONTROL = 0x04     # 转向控制
-CMD_STATUS_QUERY = 0xFF     # 状态查询
-CMD_STATUS_RESPONSE = 0x05  # 状态响应
 
 # 创建Flask应用
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -285,8 +282,7 @@ class SprayApp:
         # 串口通信相关
         self.ser = None
         self.current_speed = 0.0  # 当前后轮速度
-        self.parsing = False
-        self.buffer = bytearray()
+        self.packet_parser = PacketParser()
 
         # 喷药车控制相关
         self.spray_state = 0  # 喷药状态：0-关闭，1-开启
@@ -297,6 +293,13 @@ class SprayApp:
         # 车辆状态
         self.relay_state = 0  # 继电器状态：0-关闭，1-开启
         self.battery_voltage = 0
+        self.battery_mv = 0
+        self.turn_target_encoder = 0
+        self.turn_encoder_position = 0
+        self.uart_control_mode = 0
+        self.safety_state = 0
+        self.fault_code = 0
+        self.using_ext_status = False
         
         # GPS数据
         self.gps_serial = None
@@ -673,48 +676,16 @@ class SprayApp:
         返回:
             打包后的完整数据包
         """
-        if data_bytes is None or len(data_bytes) == 0:
-            return None
-            
-        length = len(data_bytes)
-        
-        if length > BUFFER_SIZE:
-            return None  # 数据过长，返回None
-        
-        # 构建完整的数据包
-        buffer = bytearray(length + 5)  # 创建缓冲区，只分配需要的空间
-        buffer[0] = PACKET_HEAD  # 添加包头
-        buffer[1] = cmd_type     # 命令类型
-        buffer[2] = length       # 添加长度
-        
-        # 添加数据
-        for i in range(length):
-            buffer[3 + i] = data_bytes[i]
-        
-        # 计算校验和
-        checksum = sum(data_bytes) % 256
-        buffer[length + 3] = checksum  # 添加校验和
-        buffer[length + 4] = PACKET_TAIL  # 添加包尾
-        
-        return buffer  # 返回完整的数据包
+        return pack_packet(cmd_type, data_bytes)
 
-    def send_packet(self, cmd_type, data_bytes, log_message=None):
+    def send_packed_packet(self, packed_data, log_message=None):
         """
-        通用数据包发送方法
-        
-        参数:
-            cmd_type: 命令类型
-            data_bytes: 要发送的数据字节
-            log_message: 可选的日志消息
-        
-        返回:
-            发送是否成功
+        发送已完成协议组包的数据包
         """
         if not self.ser or not self.ser.is_open:
             logger.warning("无法发送数据：串口未连接")
             return False
-            
-        packed_data = self.pack_data(cmd_type, data_bytes)
+
         if packed_data:
             try:
                 with self.serial_lock:
@@ -728,9 +699,26 @@ class SprayApp:
                 return False
         return False
 
+    def send_packet(self, cmd_type, data_bytes, log_message=None):
+        """
+        通用数据包发送方法
+        
+        参数:
+            cmd_type: 命令类型
+            data_bytes: 要发送的数据字节
+            log_message: 可选的日志消息
+        
+        返回:
+            发送是否成功
+        """
+        packed_data = self.pack_data(cmd_type, data_bytes)
+        return self.send_packed_packet(packed_data, log_message)
+
     def query_status(self):
         """查询喷药车状态"""
-        return self.send_packet(CMD_STATUS_QUERY, bytearray([0]), "查询车辆状态")
+        ext_success = self.send_packed_packet(build_ext_status_query_packet(), "查询车辆扩展状态")
+        legacy_success = self.send_packed_packet(build_status_query_packet(), "查询车辆状态")
+        return ext_success or legacy_success
 
     def receive_data(self):
         """接收并解析串口数据"""
@@ -744,93 +732,73 @@ class SprayApp:
                     data = self.ser.read(min(self.ser.in_waiting, READ_MAX_SIZE))
                     if not data:
                         break
-                    for byte in data:
-                        self.parse_byte(byte)
+                    for packet in self.packet_parser.feed(data):
+                        self.process_packet(packet)
         except Exception as e:
             logger.error(f"读取串口数据失败: {e}")
             self.communication_error_count += 1
 
     def parse_byte(self, byte):
-        """解析单个字节，效验数据包是否合规"""
-        if byte == PACKET_HEAD:
-            self.buffer = bytearray([PACKET_HEAD])
-            self.parsing = True
-        elif self.parsing:
-            self.buffer.append(byte)
+        """解析单个字节，保留给旧调用路径使用"""
+        packet = self.packet_parser.feed_byte(byte)
+        if packet is not None:
+            self.process_packet(packet)
 
-            if len(self.buffer) > RXBUFFER_LEN:
-                logger.warning(f"接收缓冲区超过上限: {len(self.buffer)}，重置解析器")
-                self.buffer = bytearray()
-                self.parsing = False
-                return
-            
-            if len(self.buffer) >= 3:
-                length = self.buffer[2]
-                if length > MAX_PACKET_DATA_LEN:
-                    logger.warning(f"数据长度异常: {length}，重置解析器")
-                    self.buffer = bytearray()
-                    self.parsing = False
-                    return
-
-                expected_len = length + 5
-                if len(self.buffer) == expected_len:
-                    if self.buffer[-1] == PACKET_TAIL:
-                        self.process_packet(self.buffer)
-                    else:
-                        logger.warning(f"包尾错误: 收到 {self.buffer[-1]}")
-                    self.buffer = bytearray()
-                    self.parsing = False
-    
     def process_packet(self, packet):
         """处理完整数据包"""
-        if len(packet) < 6:  # 数据包至少6字节
-            return
-            
-        packet_type = packet[1]
-        length = packet[2]
-        
-        # 验证数据包长度
-        if length > MAX_PACKET_DATA_LEN:
-            logger.warning(f"数据长度异常: {length}")
+        try:
+            ext_status = parse_ext_status_response(packet)
+        except Exception as e:
+            logger.warning(f"扩展状态包解析失败: {e}")
             return
 
-        if len(packet) != length + 5:
-            logger.warning(f"数据包长度错误: 收到 {len(packet)}，期望 {length + 5}")
+        if ext_status:
+            self.spray_state = ext_status["spray_state"]
+            self.speed_value = ext_status["speed_duty"]
+            self.direction = ext_status["direction"]
+            self.relay_state = ext_status["is_open"]
+            self.turn_position = ext_status["turn_cmd_position"]
+            self.turn_target_encoder = ext_status["turn_target_encoder"]
+            self.turn_encoder_position = ext_status["turn_encoder_position"]
+            self.uart_control_mode = ext_status["uart_control_mode"]
+            self.safety_state = ext_status["safety_state"]
+            self.fault_code = ext_status["fault_code"]
+            self.battery_mv = ext_status["battery_mv"]
+            self.battery_voltage = self.battery_mv / 1000.0 if self.battery_mv else 0
+            self.using_ext_status = True
+            self.last_status_update = time.time()
+            self.communication_error_count = 0
+            logger.debug(
+                f"收到扩展状态: 喷药={self.spray_state}, 速度={self.speed_value}, "
+                f"方向={self.direction}, 转向命令={self.turn_position}, "
+                f"转向编码器={self.turn_encoder_position}, 控制模式={self.uart_control_mode}"
+            )
             return
 
-        if packet[-1] != PACKET_TAIL:
-            logger.warning(f"包尾错误: 收到 {packet[-1]}")
+        try:
+            status = parse_status_response(packet)
+        except Exception as e:
+            logger.warning(f"状态包解析失败: {e}")
             return
-            
-        data = packet[3:3+length]
-        checksum = packet[3+length]
-        
-        # 验证校验和
-        calculated_checksum = sum(data) % 256
-        if calculated_checksum != checksum:
-            logger.warning(f"校验和错误: 收到 {checksum}，计算得 {calculated_checksum}")
-            return
-            
-        # 处理不同类型的数据包
-        if packet_type == CMD_STATUS_RESPONSE:  # 状态数据
-            if length >= 4:
-                self.spray_state = data[0]
-                self.speed_value = data[1]
-                self.direction = data[2]
-                self.relay_state = data[3]
-                self.last_status_update = time.time()
-                self.communication_error_count = 0  # 重置错误计数
-                logger.debug(f"收到状态更新: 喷药={self.spray_state}, 速度={self.speed_value}, 方向={self.direction}, 继电器={self.relay_state}")
+
+        if status:
+            self.spray_state = status["spray_state"]
+            self.speed_value = status["speed_duty"]
+            self.direction = status["direction"]
+            self.relay_state = status["is_open"]
+            self.last_status_update = time.time()
+            self.communication_error_count = 0  # 重置错误计数
+            logger.debug(
+                f"收到状态更新: 喷药={self.spray_state}, 速度={self.speed_value}, "
+                f"方向={self.direction}, 继电器={self.relay_state}"
+            )
 
     def send_spray_control(self, spray_state):
         """发送喷药控制命令"""
         # 确保喷药状态为0或1
         spray_state = 1 if spray_state else 0
         
-        data = bytearray(1) # 创建1字节数据
-        data[0] = spray_state
-        
-        success = self.send_packet(CMD_SPRAY_CONTROL, data, f"发送喷药控制: {spray_state}")
+        success = self.send_packed_packet(build_spray_packet(spray_state), f"发送喷药控制: {spray_state}")
         if success:
             # 立即更新本地状态
             self.spray_state = spray_state
@@ -841,10 +809,7 @@ class SprayApp:
         # 限制速度在1-102范围内
         speed = max(1, min(102, int(speed)))
         
-        data = bytearray(1)
-        data[0] = speed
-        
-        success = self.send_packet(CMD_SPEED_CONTROL, data, f"发送速度控制: {speed}")
+        success = self.send_packed_packet(build_speed_packet(speed), f"发送速度控制: {speed}")
         if success:
             # 立即更新本地状态
             self.speed_value = speed
@@ -855,10 +820,7 @@ class SprayApp:
         # 限制方向值为0(停止)、1(前进)或2(后退)
         direction = max(0, min(2, int(direction)))
         
-        data = bytearray(1)
-        data[0] = direction
-        
-        success = self.send_packet(CMD_DIRECTION_CONTROL, data, f"发送方向控制: {direction}")
+        success = self.send_packed_packet(build_direction_packet(direction), f"发送方向控制: {direction}")
         if success:
             # 立即更新本地状态
             self.direction = direction
@@ -869,10 +831,7 @@ class SprayApp:
         # 限制位置在1-101范围内
         position = max(1, min(101, int(position)))
         
-        data = bytearray(1)
-        data[0] = position
-        
-        success = self.send_packet(CMD_TURN_CONTROL, data, f"发送转向位置: {position}")
+        success = self.send_packed_packet(build_turn_packet(position), f"发送转向位置: {position}")
         if success:
             # 立即更新本地状态
             self.turn_position = position
@@ -1108,7 +1067,14 @@ def vehicle_status():
         "gps": gps_data,
         "gps_history": gps_history,
         "gps_connected": spray_app.gps_serial is not None and spray_app.gps_serial.is_open,
-        "battery_voltage": spray_app.battery_voltage
+        "battery_voltage": spray_app.battery_voltage,
+        "battery_mv": spray_app.battery_mv,
+        "turn_target_encoder": spray_app.turn_target_encoder,
+        "turn_encoder_position": spray_app.turn_encoder_position,
+        "uart_control_mode": spray_app.uart_control_mode,
+        "safety_state": spray_app.safety_state,
+        "fault_code": spray_app.fault_code,
+        "using_ext_status": spray_app.using_ext_status
     }
 
     return jsonify(status)

@@ -1,0 +1,4 @@
+<launch>
+  <!-- Compatibility entry. Prefer navigation_live_slam.launch or navigation_saved_map.launch. -->
+  <include file="$(find spraying_car_navigation)/launch/navigation_live_slam.launch"/>
+</launch>

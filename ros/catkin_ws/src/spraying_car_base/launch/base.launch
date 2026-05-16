@@ -1,0 +1,13 @@
+<launch>
+  <arg name="dry_run" default="true"/>
+  <arg name="port" default="/dev/ttyS3"/>
+
+  <node pkg="spraying_car_base"
+        type="vehicle_base_node.py"
+        name="spraying_car_base_node"
+        output="screen">
+    <rosparam file="$(find spraying_car_base)/config/base.yaml" command="load"/>
+    <param name="dry_run" value="$(arg dry_run)"/>
+    <param name="port" value="$(arg port)"/>
+  </node>
+</launch>

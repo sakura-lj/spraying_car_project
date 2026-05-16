@@ -1,0 +1,221 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="spraying_car">
+  <!-- Confirmed vehicle parameters. Units are meters and radians unless noted. -->
+  <xacro:property name="wheelbase" value="1.2"/>
+  <xacro:property name="track_width" value="0.8"/>
+  <xacro:property name="wheel_diameter" value="0.4"/>
+  <xacro:property name="wheel_radius" value="0.2"/>
+
+  <!-- Estimated placeholders, pending physical measurement. -->
+  <xacro:property name="wheel_width" value="0.10"/>
+  <xacro:property name="chassis_length" value="1.5"/>
+  <xacro:property name="chassis_width" value="0.9"/>
+  <xacro:property name="chassis_height" value="0.35"/>
+  <xacro:property name="base_link_z" value="${wheel_radius + chassis_height / 2.0}"/>
+  <xacro:property name="wheel_z" value="${-chassis_height / 2.0}"/>
+  <xacro:property name="min_turning_radius" value="1.5"/>
+  <xacro:property name="max_steer_angle_deg" value="35.0"/>
+  <xacro:property name="max_steer_angle_rad" value="0.610865"/>
+
+  <!--
+    L1RM is mounted near the front of the vehicle and slightly above the chassis.
+    Current xyz/rpy values are estimates and must be corrected after real measurement.
+  -->
+  <xacro:property name="lidar_x" value="0.45"/>
+  <xacro:property name="lidar_y" value="0.0"/>
+  <xacro:property name="lidar_z" value="0.55"/>
+  <xacro:property name="lidar_roll" value="0.0"/>
+  <xacro:property name="lidar_pitch" value="0.0"/>
+  <xacro:property name="lidar_yaw" value="0.0"/>
+
+  <xacro:property name="camera_x" value="0.45"/>
+  <xacro:property name="camera_y" value="0.0"/>
+  <xacro:property name="camera_z" value="0.65"/>
+  <xacro:property name="camera_roll" value="0.0"/>
+  <xacro:property name="camera_pitch" value="0.0"/>
+  <xacro:property name="camera_yaw" value="0.0"/>
+
+  <xacro:property name="gps_x" value="0.0"/>
+  <xacro:property name="gps_y" value="0.0"/>
+  <xacro:property name="gps_z" value="0.70"/>
+  <xacro:property name="gps_roll" value="0.0"/>
+  <xacro:property name="gps_pitch" value="0.0"/>
+  <xacro:property name="gps_yaw" value="0.0"/>
+
+  <material name="chassis_green">
+    <color rgba="0.12 0.45 0.24 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.02 0.02 0.02 1.0"/>
+  </material>
+  <material name="sensor_blue">
+    <color rgba="0.05 0.22 0.75 1.0"/>
+  </material>
+  <material name="sensor_gray">
+    <color rgba="0.45 0.48 0.50 1.0"/>
+  </material>
+  <material name="gps_white">
+    <color rgba="0.92 0.92 0.86 1.0"/>
+  </material>
+
+  <xacro:macro name="wheel_link" params="name">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+    </link>
+  </xacro:macro>
+
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_to_base_link" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${base_link_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link"/>
+
+  <joint name="base_link_to_chassis_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="chassis_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="chassis_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_green"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <xacro:wheel_link name="front_left_wheel_link"/>
+  <xacro:wheel_link name="front_right_wheel_link"/>
+  <xacro:wheel_link name="rear_left_wheel_link"/>
+  <xacro:wheel_link name="rear_right_wheel_link"/>
+
+  <joint name="base_link_to_front_left_wheel_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_left_wheel_link"/>
+    <origin xyz="${wheelbase / 2.0} ${track_width / 2.0} ${wheel_z}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="base_link_to_front_right_wheel_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_right_wheel_link"/>
+    <origin xyz="${wheelbase / 2.0} ${-track_width / 2.0} ${wheel_z}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="base_link_to_rear_left_wheel_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_left_wheel_link"/>
+    <origin xyz="${-wheelbase / 2.0} ${track_width / 2.0} ${wheel_z}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="base_link_to_rear_right_wheel_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_right_wheel_link"/>
+    <origin xyz="${-wheelbase / 2.0} ${-track_width / 2.0} ${wheel_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="lidar_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.06" length="0.08"/>
+      </geometry>
+      <material name="sensor_blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.06" length="0.08"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="base_link_to_lidar_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="${lidar_x} ${lidar_y} ${lidar_z}" rpy="${lidar_roll} ${lidar_pitch} ${lidar_yaw}"/>
+  </joint>
+
+  <link name="imu_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.03 0.03 0.01"/>
+      </geometry>
+      <material name="sensor_gray"/>
+    </visual>
+  </link>
+
+  <joint name="lidar_link_to_imu_link" type="fixed">
+    <parent link="lidar_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="camera_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.08 0.04 0.04"/>
+      </geometry>
+      <material name="sensor_gray"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.08 0.04 0.04"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="base_link_to_camera_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="${camera_x} ${camera_y} ${camera_z}" rpy="${camera_roll} ${camera_pitch} ${camera_yaw}"/>
+  </joint>
+
+  <link name="gps_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.08 0.08 0.03"/>
+      </geometry>
+      <material name="gps_white"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.08 0.08 0.03"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="base_link_to_gps_link" type="fixed">
+    <parent link="base_link"/>
+    <child link="gps_link"/>
+    <origin xyz="${gps_x} ${gps_y} ${gps_z}" rpy="${gps_roll} ${gps_pitch} ${gps_yaw}"/>
+  </joint>
+</robot>

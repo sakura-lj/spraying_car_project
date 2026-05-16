@@ -1,0 +1,17 @@
+<launch>
+  <arg name="use_rviz" default="false"/>
+  <arg name="lidar_port" default="/dev/ttyUSB0"/>
+  <arg name="lidar_frame" default="lidar_link"/>
+  <arg name="imu_frame" default="imu_link"/>
+
+  <include file="$(find spraying_car_description)/launch/description.launch">
+    <arg name="use_rviz" value="false"/>
+  </include>
+
+  <include file="$(find spraying_car_slam)/launch/unilidar.launch">
+    <arg name="lidar_port" value="$(arg lidar_port)"/>
+    <arg name="lidar_frame" value="$(arg lidar_frame)"/>
+    <arg name="imu_frame" value="$(arg imu_frame)"/>
+    <arg name="use_rviz" value="$(arg use_rviz)"/>
+  </include>
+</launch>

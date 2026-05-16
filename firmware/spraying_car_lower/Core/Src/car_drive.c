@@ -221,6 +221,14 @@ uint8_t get_control_mode(void) {
     return uart_control_mode;
 }
 
+uint16_t get_fault_code(void) {
+    return 0;
+}
+
+uint16_t get_battery_mv(void) {
+    return 0;
+}
+
 /**
  * @brief  强制切换控制模式（用于调试或特殊情况）
  * @param  mode: 0-遥控器控制, 1-串口控制
@@ -255,5 +263,4 @@ void emergency_stop(void) {
     
     // 注意：转向控制需要通过步进电机函数处理，这里不直接控制
 }
-
 

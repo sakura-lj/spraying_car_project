@@ -1,0 +1,192 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /TF1
+        - /RobotModel1
+        - /Global Costmap1
+        - /Local Costmap1
+      Splitter Ratio: 0.5
+  - Class: rviz/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/Grid
+      Alpha: 0.5
+      Cell Size: 1
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+      Marker Scale: 0.5
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Update Interval: 0
+      Value: true
+    - Class: rviz/RobotModel
+      Alpha: 1
+      Collision Enabled: false
+      Enabled: true
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Class: rviz/Odometry
+      Enabled: true
+      Keep: 50
+      Name: Slam Odom
+      Position Tolerance: 0.1
+      Angle Tolerance: 0.1
+      Shape:
+        Value: Arrow
+        Color: 255; 80; 0
+        Alpha: 1
+        Shaft Length: 0.5
+        Shaft Radius: 0.04
+        Head Length: 0.18
+        Head Radius: 0.08
+      Topic: /slam_odom
+      Value: true
+    - Class: rviz/PointCloud2
+      Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Color Transformer: Intensity
+      Decay Time: 0
+      Enabled: true
+      Name: L1RM Cloud
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic: /unilidar/cloud
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Class: rviz/Map
+      Alpha: 0.7
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Global Costmap
+      Topic: /move_base/global_costmap/costmap
+      Unreliable: false
+      Value: true
+    - Class: rviz/Map
+      Alpha: 0.7
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+      Name: Local Costmap
+      Topic: /move_base/local_costmap/costmap
+      Unreliable: false
+      Value: true
+    - Class: rviz/Path
+      Alpha: 1
+      Buffer Length: 1
+      Color: 50; 120; 255
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.04
+      Name: Global Plan
+      Pose Style: None
+      Queue Size: 10
+      Topic: /move_base/GlobalPlanner/plan
+      Value: true
+    - Class: rviz/Path
+      Alpha: 1
+      Buffer Length: 1
+      Color: 255; 120; 20
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.05
+      Name: TEB Local Plan
+      Pose Style: None
+      Queue Size: 10
+      Topic: /move_base/TebLocalPlannerROS/local_plan
+      Value: true
+    - Class: rviz/PoseStamped
+      Alpha: 1
+      Axes Length: 0.6
+      Axes Radius: 0.04
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.25
+      Head Radius: 0.1
+      Name: Current Goal
+      Shaft Length: 0.8
+      Shaft Radius: 0.05
+      Shape: Arrow
+      Topic: /move_base/current_goal
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Default Light: true
+    Fixed Frame: odom
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+    - Class: rviz/SetInitialPose
+      Topic: /initialpose
+    - Class: rviz/SetGoal
+      Topic: /move_base_simple/goal
+    - Class: rviz/PublishPoint
+      Single click: true
+      Topic: /clicked_point
+  Value: true
+  Views:
+    Current:
+      Class: rviz/Orbit
+      Distance: 8
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Name: Current View
+      Pitch: 0.6
+      Target Frame: <Fixed Frame>
+      Yaw: 0.75
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 900
+  Hide Left Dock: false
+  Hide Right Dock: false
+  Views:
+    collapsed: false
+  Width: 1280
+  X: 80
+  Y: 80

@@ -21,6 +21,8 @@ void spray_control(void);
 
 // 状态查询和控制模式管理
 uint8_t get_control_mode(void);
+uint16_t get_fault_code(void);
+uint16_t get_battery_mv(void);
 void set_control_mode(uint8_t mode);
 
 // 紧急停止功能

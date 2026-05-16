@@ -13,6 +13,7 @@ static volatile int32_t current_position    = 0;  // 当前位置
 static volatile int32_t differ_position     = 0;  // 当前位置与目标位置的步数差值 因为电机为4000细分，同时编码器也为4000细分，所以一个脉冲编码器就会变化一个位置
 static volatile uint8_t motor_running       = 0;  // 电机运行状态
 static volatile uint8_t using_CH4           = 51; // 当前CH4值，默认为中间值
+static volatile uint8_t turn_cmd_position   = 51; // 当前转向命令位置，1-101，51中位
 static volatile uint32_t motor_speed        = 0;  // 当前电机速度，可动态调整
 static volatile uint32_t last_encoder_value = 0;  // 上次编码器值，用于计算速度
 
@@ -200,6 +201,14 @@ void Step_Motor_Control(void)
 
 void set_target_position(uint8_t target)
 {
+    if (target < 1) {
+        target = 1;
+    } else if (target > 101) {
+        target = 101;
+    }
+
+    turn_cmd_position = target;
+
     /* 获取当前编码器位置 */
     current_position = Get_Encoder_Value();
     /* 计算目标位置 */
@@ -212,6 +221,21 @@ void set_target_position(uint8_t target)
     }
     /* 启动电机 */
     Step_Motor_New_Run();
+}
+
+uint8_t get_turn_cmd_position(void)
+{
+    return turn_cmd_position;
+}
+
+int32_t get_turn_target_encoder(void)
+{
+    return target_position;
+}
+
+int32_t get_turn_encoder_position(void)
+{
+    return (int32_t)Get_Encoder_Value();
 }
 
 /**

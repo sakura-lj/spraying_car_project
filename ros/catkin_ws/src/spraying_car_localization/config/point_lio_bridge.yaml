@@ -1,0 +1,18 @@
+point_lio_odom_topic: /pointlio/odom
+output_odom_topic: /slam_odom
+
+point_lio_world_frame: camera_init
+point_lio_body_frame: aft_mapped
+
+standard_odom_frame: odom
+standard_base_frame: base_link
+lidar_frame: lidar_link
+
+publish_tf: false
+republish_odom: true
+
+use_lidar_to_base_tf: true
+tf_lookup_timeout: 0.2
+
+warn_if_frame_mismatch: true
+print_frame_debug: true

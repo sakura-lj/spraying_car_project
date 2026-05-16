@@ -1,8 +1,9 @@
 # 农业喷药无人车 — 项目交接文档
 
-> **生成时间**: 2026-05-16  
+> **生成时间**: 2026-05-16（初版），2026-05-16（更新至阶段4完成）  
 > **文档目的**: 供下一个 AI 助手/开发者准确了解项目现状，规划后续 ROS 化与自动驾驶开发  
-> **约束**: 本文档不修改任何源码，仅基于只读分析生成
+> **约束**: 本文档不修改任何源码，仅基于只读分析生成  
+> **最新变更**: 阶段1~4已完成（串口协议抽离、协议测试、ROS底盘桥接、扩展状态协议 0x06/0x07）
 
 ---
 
@@ -34,22 +35,24 @@
 2. **Web 远程控制已形成闭环**：Vue 前端 → Flask API → STM32 串口 → 车辆动作，全部可运行。来源：`web/upper/app.py`、`web/upper/website/`
 3. **GPS 轨迹显示已实现**：GPS Modbus RTU → Flask GPS 线程 → WGS84→GCJ02 转换 → Vue 高德地图实时轨迹。来源：`web/upper/app.py:415-465`
 4. **USB 摄像头视频流已实现**：OpenCV → Flask MJPEG → `/video_feed` 端点可直接显示。来源：`web/upper/app.py:75-266`
-5. **串口协议已实现但状态回传字段严重不足**：当前 STM32 仅回传 4 字节（喷药状态、速度档位、方向、继电器状态），缺少真实轮速、真实转向角度、电池电压、编码器位置等自动驾驶必需数据。来源：`firmware/spraying_car_lower/Core/Src/upper.c:477-481`
-6. **ROS 底盘节点（`/cmd_vel` 到 STM32 控制转换）完全未实现**：`spraying_car_base` 目录只有 README.md 设计文档，无任何源码。来源：`ros/catkin_ws/src/spraying_car_base/`
-7. **宇树 L1RM LiDAR 驱动已编译可运行**：`unitree_lidar_ros` 包有完整 C++ 源码并编译通过，可发布 `/unilidar/cloud` 和 `/unilidar/imu`。来源：`ros/catkin_ws/src/third_party/unilidar_sdk/unitree_lidar_ros/`
-8. **point_lio_unilidar 建图已编译可运行**：有完整 C++ 源码和 launch 文件，可输出 PCD 地图。来源：`ros/catkin_ws/src/third_party/catkin_point_lio_unilidar/`
-9. **move_base/TEB/waypoint 导航完全未实现**：`spraying_car_navigation`、`spraying_car_waypoint` 均只有 README 骨架。来源：`ros/catkin_ws/src/spraying_car_navigation/README.md`
-10. **点云建图与底盘控制之间没有任何桥接**：LiDAR 和 SLAM 可以独立运行，但与车辆底层控制（速度/方向/转向）完全无数据链路。
-11. **没有 URDF 模型**：`spraying_car_description` 只有 README 文件，无实际 URDF/XACRO。来源：`ros/catkin_ws/src/spraying_car_description/`
-12. **没有 TF 树**：当前 SLAM 只发布 `camera_init` → `aft_mapped`，没有 `base_link`、`odom`、`map` 等标准 ROS TF 帧。来源：`ros/catkin_ws/src/third_party/catkin_point_lio_unilidar/AGENTS.md:50`
-13. **Apple_leaf_detection.rknn 模型文件存在但未接入系统**：模型文件 4.1MB 位于 `web/upper/`，无任何代码引用。来源：`web/upper/Apple_leaf_detection.rknn` + 全仓库 grep 零引用
-14. **没有 YOLO 数据集、训练代码或推理脚本**：仓库中无 .pt、.onnx 文件，无 `orangepi图像识别/` 目录。结论：图像识别闭环未形成。
-15. **电池电压采集、液位采集、故障检测均未实现**：`battery_voltage` 在 Flask 中初始化但始终为 0，STM32 无 ADC 电压采集代码。
-16. **RTK 定位未实现**：GPS 模块使用 Modbus RTU 读取，精度为普通 GNSS 单点定位。
-17. **MQTT 云端已废弃**：旧 MQTT 代码在 `trash/webbackend/` 中，当前 Flask 不再使用 MQTT。
-18. **frp 公网访问已配置**：`deploy/frpc.ini` 存在（含服务器地址，视为敏感配置），可将 Flask 5000 端口映射到公网。
-19. **机器人没有 odom（里程计）**：既无轮速编码器采集代码，也无 `/odom` 话题发布。
-20. **最大技术风险点**：(a) STM32 状态包缺少自动驾驶核心数据；(b) 串口协议无 CRC 校验（仅简单 checksum），高速控制时可能出错；(c) ORANGE Pi 5B 的 OHCI USB 控制器不稳定，可能影响 LiDAR 数据传输；(d) 转向编码器 int16_t 可能溢出（最大 ±32767 计数）。
+5. **串口协议已抽离为独立 Python 模块**：`vehicle_protocol.py` 可供 Flask 和 ROS 节点共用，含 `PacketParser`、`pack_packet`、`parse_packet` 等纯协议函数，导入不打开串口。来源：`web/upper/vehicle_protocol.py`
+6. **串口协议已扩展（阶段4）**：新增 `CMD_EXT_STATUS_QUERY=0x06` / `CMD_EXT_STATUS_RESPONSE=0x07`，26 字节 little-endian 扩展状态包。旧 0x05/0xFF 完全保留。含转向编码器读数、控制模式、故障码预留、电池电压预留等字段。来源：`upper.c:548-593`, `docs/STM32_UART_PROTOCOL.md`
+7. **协议测试套件已建立**：`test_vehicle_protocol.py` 含 17 个单元测试全部通过，覆盖 spray/speed/direction/turn 命令构建、checksum、PacketParser 粘包/半包/脏数据。来源：`web/upper/test_vehicle_protocol.py`
+8. **ROS 底盘桥接节点已实现（阶段3）**：`spraying_car_base/scripts/vehicle_base_node.py` 订阅 `/cmd_vel`，发布 `/spraying_car/base_state`，复用 `vehicle_protocol.py`，支持 dry_run 模式，含 cmd_timeout 安全停车、状态查询（优先 0x07 扩展，无响应回退 0x05）。来源：`ros/catkin_ws/src/spraying_car_base/`
+9. **宇树 L1RM LiDAR 驱动已编译可运行**：`unitree_lidar_ros` 包有完整 C++ 源码并编译通过，可发布 `/unilidar/cloud` 和 `/unilidar/imu`。来源：`ros/catkin_ws/src/third_party/unilidar_sdk/unitree_lidar_ros/`
+10. **point_lio_unilidar 建图已编译可运行**：有完整 C++ 源码和 launch 文件，可输出 PCD 地图。来源：`ros/catkin_ws/src/third_party/catkin_point_lio_unilidar/`
+11. **move_base/TEB/waypoint 导航完全未实现**：`spraying_car_navigation`、`spraying_car_waypoint` 均只有 README 骨架。
+12. **点云建图与底盘控制之间已部分桥接**：ROS 底盘节点可通过 `/cmd_vel` 控制车辆，但尚未与 LiDAR/SLAM 数据形成闭环导航链路。
+13. **没有 URDF 模型**：`spraying_car_description` 只有 README 文件，无实际 URDF/XACRO。
+14. **没有 TF 树**：当前 SLAM 只发布 `camera_init` → `aft_mapped`，没有 `base_link`、`odom`、`map` 等标准 ROS TF 帧。
+15. **Apple_leaf_detection.rknn 模型文件存在但未接入系统**：模型文件 4.1MB 位于 `web/upper/`，无任何代码引用。
+16. **没有 YOLO 数据集、训练代码或推理脚本**：仓库中无 .pt、.onnx 文件，无 `orangepi图像识别/` 目录。结论：图像识别闭环未形成。
+17. **电池电压采集、液位采集、故障检测字段已预留但无硬件数据源**：`battery_mv=0`、`fault_code=0`、`safety_state=0`，STM32 无 ADC 采集代码。
+18. **RTK 定位未实现**：GPS 模块使用 Modbus RTU 读取，精度为普通 GNSS 单点定位。
+19. **MQTT 云端已废弃**：旧 MQTT 代码在 `trash/webbackend/` 中，当前 Flask 不再使用 MQTT。
+20. **frp 公网访问已配置**：`deploy/frpc.ini` 存在（含服务器地址，视为敏感配置），可将 Flask 5000 端口映射到公网。
+21. **机器人没有正式 odom（里程计）**：既无轮速编码器采集代码，也无 `/odom` 话题发布。转向编码器已回传但底层仍是 int16_t。
+22. **最大技术风险点**：(a) 转向编码器 int16_t 可能溢出；(b) 串口协议无 CRC 校验（仅简单 checksum）；(c) Orange Pi 5B OHCI USB 不稳定；(d) 无轮速/真实速度反馈；(e) 速度档位未标定实际车速。
 
 ---
 
@@ -59,7 +62,10 @@
 /home/orangepi/spraying_car_project/
 │
 ├── README.md                          [空文件]
-├── docs/                              [空目录 - 交付后本文档将在此]
+├── docs/                              ★ 文档目录 (含交接文档+协议文档)
+│   ├── PROJECT_HANDOFF_FOR_CHATGPT.md  项目交接文档 (本文档)
+│   ├── STM32_UART_PROTOCOL.md          ★ 新增 串口协议完整说明
+│   └── ROS_BASE_BRIDGE.md             ★ 新增 ROS底盘桥接说明
 ├── maps/                              [空目录 - 预留给地图文件]
 ├── bags/                              [空目录 - 预留给 rosbag]
 ├── scripts/                           [空目录 - 预留给脚本]
@@ -76,7 +82,7 @@
 │   └── USB_DEVICE/ CDC 虚拟串口
 │
 ├── ros/catkin_ws/src/                 ★ ROS1 Noetic 工作区
-│   ├── spraying_car_base/             [骨架] 底盘桥接 (仅 README)
+│   ├── spraying_car_base/             ✓ 已实现 底盘桥接 (vehicle_base_node.py + base.yaml + launch)
 │   ├── spraying_car_bringup/          [骨架] 启动聚合 (仅 README)
 │   ├── spraying_car_description/      [骨架] URDF 模型 (仅 README)
 │   ├── spraying_car_msgs/             [骨架] 自定义消息 (仅 README)
@@ -93,9 +99,9 @@
 │           └── unitree_lidar_ros2/    ROS2 驱动 (未使用)
 │
 └── web/upper/                         ★ 上位机 Orange Pi 5B
-    ├── app.py                         主 Flask 应用 (1147行)
-    ├── start.py                       启动器
-    ├── Apple_leaf_detection.rknn      未使用的 RKNN 模型 (4.1MB)
+    ├── app.py                         主 Flask 应用 (~1180行)
+    ├── vehicle_protocol.py            ★ 新增 独立串口协议模块 (260行)
+    ├── test_vehicle_protocol.py       ★ 新增 协议单元测试 (17 tests, 161行)
     ├── deploy/frpc.ini                frp 公网配置 (含敏感信息)
     ├── docs/使用文档.md               用户使用文档 (可信)
     ├── templates/index.html           备用控制面板 (1795行)
@@ -252,11 +258,12 @@ uart_control_mode 标志位 (全局):
 | 方向控制 | ✓ | RC CH5 / UART 0x03 | 无 | `car_drive.c:53-64,92-96` | 双继电器控制 |
 | 喷药控制 | ✓ | RC CH6 / UART 0x01 | 无 | `car_drive.c:40-46,81-85` | 单继电器 |
 | 主电源控制 | ✓ | RC 长按手势 / UART 自动开 | 无 | `main.c:96-112` | 无电压检测 |
-| 状态回传 | ✓ (4字节) | UART 0xFF 查询/自动回复 | - | `upper.c:477-481` | 数据严重不足 |
+| 状态回传(旧) | ✓ (4字节) | UART 0xFF | - | `upper.c:512-546` | 保留兼容 |
+| 状态回传(扩展) | ★新增 | UART 0x06 | TIM5 + PID + 仲裁 | `upper.c:552-593` | 26字节,含编码器/控制模式 |
 | 轮速测量 | ✗ | — | — | — | 需编码器硬件 |
-| 电池电压 | ✗ | — | — | — | 需 ADC 通道 |
+| 电池电压 | ✗ (占位) | — | — | `car_drive.c:228` | `get_battery_mv()` 始终返回0 |
 | 液位检测 | ✗ | — | — | — | 需传感器 + ADC |
-| 故障码上报 | ✗ | — | — | — | 无异常处理机制 |
+| 故障码上报 | ✗ (占位) | — | — | `car_drive.c:224` | `get_fault_code()` 始终返回0 |
 | 硬件急停 | ✗ | — | — | — | 软件急停 |
 
 ### 下位机当前已实现但未被上位机使用的能力
@@ -297,20 +304,22 @@ uart_control_mode 标志位 (全局):
 **完整包长度 = LEN + 5**
 
 **STM32 端**：`firmware/spraying_car_lower/Core/Src/upper.c:70-80, 131-166`  
-**Python 端**：`web/upper/app.py:50-64, 665-699`
+**Python 端**：`web/upper/vehicle_protocol.py:1-260`（独立协议模块，Flask 和 ROS 节点共用）
 
 ### 命令列表
 
 | 命令名 | type 值 | 方向 | data 格式 | 作用 | STM32 代码位置 | Python 代码位置 |
 |--------|---------|------|-----------|------|----------------|-----------------|
-| CMD_SPRAY_CONTROL | 0x01 | PC→STM32 | 1B: 0=关, 1=开 | 控制喷药继电器 | `upper.c:287-297` | `app.py:825-837` |
-| CMD_SPEED_CONTROL | 0x02 | PC→STM32 | 1B: 1-102 档位 | 控制牵引电机速度 | `upper.c:299-313` | `app.py:839-851` |
-| CMD_DIRECTION_CONTROL | 0x03 | PC→STM32 | 1B: 0=停, 1=前, 2=后 | 控制方向继电器 | `upper.c:315-334` | `app.py:853-865` |
-| CMD_TURN_CONTROL | 0x04 | PC→STM32 | 1B: 1-101(51=中) | 设转向目标位置 | `upper.c:336-349` | `app.py:867-879` |
-| CMD_STATUS_QUERY | 0xFF | PC→STM32 | 任意1B(忽略) | 查询当前状态 | `upper.c:351-355` | `app.py:731-733` |
-| CMD_STATUS_RESPONSE | 0x05 | STM32→PC | 4B: [喷药 速度 方向 电源] | 返回车辆状态 | `upper.c:477-481` | `app.py:815-823` |
+| CMD_SPRAY_CONTROL | 0x01 | PC→STM32 | 1B: 0=关, 1=开 | 控制喷药继电器 | `upper.c:287-297` | `vehicle_protocol.py:223` |
+| CMD_SPEED_CONTROL | 0x02 | PC→STM32 | 1B: 1-102 档位 | 控制牵引电机速度 | `upper.c:299-313` | `vehicle_protocol.py:227` |
+| CMD_DIRECTION_CONTROL | 0x03 | PC→STM32 | 1B: 0=停, 1=前, 2=后 | 控制方向继电器 | `upper.c:315-334` | `vehicle_protocol.py:231` |
+| CMD_TURN_CONTROL | 0x04 | PC→STM32 | 1B: 1-101(51=中) | 设转向目标位置 | `upper.c:336-349` | `vehicle_protocol.py:235` |
+| CMD_STATUS_QUERY | 0xFF | PC→STM32 | 任意1B(忽略) | 查询旧状态(4字节) | `upper.c:351-355` | `vehicle_protocol.py:239` |
+| CMD_STATUS_RESPONSE | 0x05 | STM32→PC | 4B: [喷药 速度 方向 电源] | 返回旧车辆状态 | `upper.c:512-546` | `vehicle_protocol.py:163` |
+| **CMD_EXT_STATUS_QUERY** ★ | **0x06** | PC→STM32 | 任意1B(忽略) | 查询扩展状态(26字节) | `upper.c:369` | `vehicle_protocol.py:243` |
+| **CMD_EXT_STATUS_RESPONSE** ★ | **0x07** | STM32→PC | 26B(见下表) | 返回扩展车辆状态 | `upper.c:552-593` | `vehicle_protocol.py:187` |
 
-### 状态响应包详情
+### 旧状态响应包 (0x05, 保持兼容)
 
 | 字节偏移 | 字段 | 类型 | 说明 |
 |---------|------|------|------|
@@ -319,19 +328,37 @@ uart_control_mode 标志位 (全局):
 | data[2] | direction_state | uint8 | 0=停止, 1=前进, 2=后退 |
 | data[3] | is_open | uint8 | 0=电源关, 1=电源开 |
 
+### 扩展状态响应包 (0x07, ★阶段4新增, 26字节 little-endian)
+
+| 字节偏移 | 字段 | 类型 | 当前来源 | 说明 |
+|---------|------|------|---------|------|
+| byte[0] | protocol_version | uint8 | 固定 1 | 协议版本号 |
+| byte[1] | spray_state | uint8 | 真实 | 喷药状态 |
+| byte[2] | speed_duty | uint8 | 真实 | 速度档位 1-102 |
+| byte[3] | direction | uint8 | 真实 | 方向 0=停,1=前,2=后 |
+| byte[4] | is_open | uint8 | 真实 | 电源/继电器状态 |
+| byte[5] | turn_cmd_position | uint8 | 真实 | 最近转向命令位置 1-101 |
+| byte[6:10] | turn_target_encoder | int32 | 真实 | 转向目标编码器位置 |
+| byte[10:14] | turn_encoder_position | int32 | 真实(底层int16_t) | TIM5 编码器当前读数 |
+| byte[14] | uart_control_mode | uint8 | 真实 | 0=遥控器, 1=串口控制 |
+| byte[15] | safety_state | uint8 | 占位(=0) | 无独立硬件急停输入 |
+| byte[16:18] | fault_code | uint16 | 占位(=0) | 无故障码系统 |
+| byte[18:20] | battery_mv | uint16 | 占位(=0) | 无电池 ADC 采集 |
+| byte[20:22] | reserved_u16 | uint16 | 保留(=0) | — |
+| byte[22:26] | reserved_u32 | uint32 | 保留(=0) | — |
+
 ### 协议当前不足之处
 
-| 缺失项 | 影响 | 优先级 |
-|--------|------|--------|
-| **无真实轮速** | 无法计算里程计、速度闭环 | 极高 |
-| **无真实转向角** | 无法发布 `/joint_states` | 极高 |
-| **无编码器值** | 无法做里程计融合定位 | 极高 |
-| **无电池电压** | 无法做低电量保护/返航 | 高 |
-| **无故障码** | 无法诊断电机/传感器故障 | 中 |
-| **无控制模式位** | 上位机不知道当前是 RC 还是串口在控制 | 中 |
-| **仅简单 checksum** | 无 CRC，高速连续控制可能漏错误 | 中 |
-| **无时间戳** | 无法做时间同步 | 低 |
-| **无数据包序号** | 无法检测丢包 | 低 |
+| 缺失项 | 影响 | 优先级 | 当前状态 |
+|--------|------|--------|---------|
+| **无真实轮速** | 无法计算里程计、速度闭环 | 极高 | 仍未实现 |
+| **无真实转向角** | 无法发布 `/joint_states` | 极高 | 编码器值已回传但未标定角度 |
+| **编码器 int16_t→int32_t** | 转向计数可能溢出 | 极高 | 字段已是int32_t，但底层仍是int16_t转换 |
+| **无电池电压** | 无法做低电量保护/返航 | 高 | 字段已预留但始终为0 |
+| **无故障码** | 无法诊断电机/传感器故障 | 中 | 字段已预留但始终为0 |
+| **无 CRC** | 仅简单 checksum，高速控制可能漏错误 | 中 | 仍为简单checksum |
+| **无时间戳** | 无法做时间同步 | 低 | 仍未实现 |
+| **无数据包序号** | 无法检测丢包 | 低 | 仍未实现 |
 
 ### 超时与重连
 
@@ -349,7 +376,9 @@ uart_control_mode 标志位 (全局):
 | 项目 | 内容 |
 |------|------|
 | **主程序入口** | `web/upper/start.py` → 子进程启动 `app.py` |
-| **文件行数** | `app.py` 1147 行 |
+| **文件行数** | `app.py` ~1180 行 |
+| **协议模块** | `web/upper/vehicle_protocol.py` (260行，纯协议，无串口操作) |
+| **协议测试** | `web/upper/test_vehicle_protocol.py` (17 tests, 全部通过) |
 | **Flask 监听** | `0.0.0.0:5000` |
 | **串口（车辆控制）** | `/dev/ttyS3` (波特率 115200, 8N1)，环境变量 `VEHICLE_SERIAL_PORT` |
 | **串口（GPS）** | `/dev/ttyUSB0` (波特率 115200)，环境变量 `GPS_SERIAL_PORT` |
@@ -367,9 +396,11 @@ main
 ### 状态缓存机制
 
 - **乐观更新**: 每个 `send_*()` 方法立即更新本地状态变量
-- **STM32 真值覆盖**: 收到 `CMD_STATUS_RESPONSE` 后覆盖本地状态
+- **STM32 真值覆盖**: 优先解析 0x07 扩展状态包（含编码器、控制模式等），无扩展响应时回退旧 0x05
+- **扩展状态字段**: `using_ext_status`, `turn_target_encoder`, `turn_encoder_position`, `uart_control_mode`, `safety_state`, `fault_code`, `battery_mv`
 - **GPS 锁保护**: `gps_lock` 保证 GPS 数据读写线程安全
 - **串口锁**: `serial_lock` 防止多线程同时操作串口
+- **协议复用**: `app.py` 从 `vehicle_protocol.py` 导入所有协议函数，不再内嵌第二套协议实现
 
 ### Flask API 路由表
 
@@ -502,13 +533,15 @@ main
 
 | 项目 | 是否存在 | 状态 |
 |------|---------|------|
-| ROS1 Noetic 工作区 | 存在 | `ros/catkin_ws/`，仅有 src 目录 |
+| ROS1 Noetic 工作区 | 存在 | `ros/catkin_ws/`，`catkin_make` 编译通过 |
 | roscore 主节点 | 按需启动 | 需手动 `roscore` |
-| 自定义 ROS 包 | 存在 8 个 | 全部为**骨架**（仅有 README.md） |
+| spraying_car_base ★ | 存在 | **已实现**（vehicle_base_node.py 453行, base.yaml, launch, 通过 catkin_make） |
+| 其余 7 个自定义 ROS 包 | 存在 | 全部为**骨架**（仅有 README.md） |
 | point_lio_unilidar | 存在 | **已编译可运行** |
 | unitree_lidar_ros | 存在 | **已编译可运行** |
 | unitree_lidar_sdk | 存在 | **已编译**（闭源 .a 库） |
-| launch 文件 | 存在 | point_lio_unilidar: 6 个, unitree_lidar_ros: 2 个 |
+| launch 文件 | 存在 | point_lio_unilidar: 6个, unitree_lidar_ros: 2个, spraying_car_base: 1个 |
+| `/cmd_vel` → STM32 桥接 ★ | 存在 | **已实现**，含 dry_run 测试模式 |
 | URDF/XACRO | 不存在 | spraying_car_description 仅有 README |
 | TF 配置 | 部分存在 | SLAM 输出 `camera_init` → `aft_mapped`，无标准 TF 树 |
 | move_base 配置 | 不存在 | spraying_car_navigation 仅有 README |
@@ -518,20 +551,51 @@ main
 | rosbag 数据 | 不存在 | bags/ 目录为空 |
 | 地图 (.pgm/.yaml) | 不存在 | maps/ 目录为空 |
 
-### 8 个骨架 ROS 包现状
+### 8 个 ROS 包现状（阶段3后更新）
 
-这些目录只包含 README.md 文件，没有 CMakeLists.txt、package.xml 或任何源码：
+| 包名 | 计划功能 | 当前状态 |
+|------|---------|---------|
+| spraying_car_base | ★ 底盘桥接 | **已实现**。`vehicle_base_node.py` 订阅 `/cmd_vel`，发布 `/spraying_car/base_state`(JSON)，复用 `vehicle_protocol.py`，含 `dry_run` 模式、`cmd_timeout` 安全停车、扩展状态优先+旧状态回退。`config/base.yaml` + `launch/base.launch`。 |
+| spraying_car_bringup | 启动聚合 | 骨架（仅 README） |
+| spraying_car_description | URDF 模型 | 骨架（仅 README） |
+| spraying_car_msgs | 自定义消息 | 骨架（仅 README） |
+| spraying_car_navigation | 导航堆栈 | 骨架（仅 README） |
+| spraying_car_slam | SLAM 封装 | 骨架（仅 README） |
+| spraying_car_tools | 调试工具 | 骨架（仅 README） |
+| spraying_car_waypoint | 航线跟随 | 骨架（仅 README） |
 
-| 包名 | 计划功能 | README 内容摘要 |
-|------|---------|----------------|
-| spraying_car_base | 底盘桥接 | `/cmd_vel` ↔ STM32 串口，发布 odom + vehicle_state。建议 Python 实现 |
-| spraying_car_bringup | 启动聚合 | 主 launch 文件聚合所有子系统（README 为空） |
-| spraying_car_description | URDF 模型 | 机器人模型描述（README 内容与 bringup 相同，疑似复制粘贴错误） |
-| spraying_car_msgs | 自定义消息 | VehicleState.msg, VehicleCmd.msg |
-| spraying_car_navigation | 导航堆栈 | move_base + costmap + teb_local_planner + map_server + AMCL 配置 |
-| spraying_car_slam | SLAM 封装 | launch/config 封装 point_lio_unilidar，保持上游不改 |
-| spraying_car_tools | 调试工具 | serial_test.py, cmd_vel_test.py, odom_test.py, emergency_stop_test.py, record_waypoint.py |
-| spraying_car_waypoint | 航线跟随 | 固定路线 waypoint 执行，顺序发送目标位姿给 move_base |
+### ROS 底盘桥接节点详情 (`spraying_car_base`) ★阶段3
+
+**节点**: `spraying_car_base_node` (`vehicle_base_node.py`, 453行)
+
+**订阅**:
+- `/cmd_vel` (geometry_msgs/Twist) — 速度/转向命令
+
+**发布**:
+- `/spraying_car/base_state` (std_msgs/String, JSON) — 含 spray/speed/direction/encoder/control_mode/fault/battery 等
+
+**核心特性**:
+- `/cmd_vel` → STM32 协议转换: `linear.x`→速度档位+方向, `angular.z`→转向位置, 含限幅
+- `cmd_timeout=0.5s`: 停止发 `/cmd_vel` 后自动安全停车(方向停+速度归零+可选关喷药+回中)
+- `dry_run=true`: 不打开串口，打印十六进制调试信息（测试安全）
+- 协议复用: 从 `web/upper/vehicle_protocol.py` 导入，无重复实现
+- 扩展状态优先: 发布 `build_ext_status_query_packet()`，长时间无 0x07 响应回退 0x05
+- 节点关闭时自动发送安全停车
+
+**配置**: `ros/catkin_ws/src/spraying_car_base/config/base.yaml` (28行)
+- `max_speed_duty=40`(保守上限), `max_angular_z=1.0`, `center_turn_position=51`
+
+**测试命令**:
+```bash
+# dry_run 模式（默认）
+roslaunch spraying_car_base base.launch
+rostopic pub -1 /cmd_vel geometry_msgs/Twist "linear: {x: 0.2}"
+
+# 实车测试（需先停止 Flask）
+roslaunch spraying_car_base base.launch dry_run:=false port:=/dev/ttyS3
+```
+
+来源: `docs/ROS_BASE_BRIDGE.md`
 
 ### LiDAR 启动流程（已验证可运行）
 
@@ -554,12 +618,14 @@ roslaunch point_lio_unilidar mapping_unilidar_l1.launch rviz:=false
 
 ### ROS 自动驾驶闭环现状
 
-**当前不存在 ROS 自动驾驶闭环**。LiDAR + SLAM 可以独立建图，但以下关键链路均未实现：
-- 建图结果 → 导航规划 → 速度/转向指令 → STM32 车辆执行
-- 里程计（odom）发布
-- 地图格式转换（PCD → 2D costmap）
-- 全局/局部路径规划
-- 遥控器安全接管机制
+**/cmd_vel 到车辆控制的桥接已实现（阶段3）**，但完整的自动驾驶闭环尚未形成。LiDAR + SLAM 可以独立建图，`/cmd_vel` 可驱动车辆，但中间缺少导航规划层：
+- ✓ `/cmd_vel` → STM32 协议转换 (已实现)
+- ✓ 安全停车 timeout (已实现)
+- ✓ 扩展状态查询 (已实现)
+- ✗ 建图结果 → 导航规划 → `/cmd_vel`（move_base 未实现）
+- ✗ 里程计（/odom）发布（无轮速编码器）
+- ✗ 地图格式转换（PCD → 2D costmap）
+- ✗ 全局/局部路径规划
 
 ---
 
@@ -570,34 +636,37 @@ roslaunch point_lio_unilidar mapping_unilidar_l1.launch rviz:=false
 ```
 1. 遥控器 → STM32 → 电机/转向/喷药 (已实现)
    RC Receiver → TIMx IC → Remote_control.c → car_drive.c → DAC/GPIO/PWM
-   来源: firmware/spraying_car_lower/Core/Src/
 
 2. Vue → Flask API → STM32 串口 → 车辆动作 (已实现)
-   ControlPage.vue → POST /xxx_control → app.py send_xxx() → serial write → STM32 upper.c
-   来源: web/upper/website/src/views/ControlPage.vue, web/upper/app.py
+   ControlPage.vue → POST /xxx_control → app.py(vehicle_protocol.py) → serial → STM32
 
-3. STM32 状态 → Flask → Vue (已实现，数据不完整)
-   STM32 send_status_data() → USART1 → Flask receive_data() → /vehicle_status → Vue
-   来源: firmware/.../upper.c:477, app.py:735-823, website/src/views/
+3. STM32 状态 → Flask → Vue (已实现，数据已扩展)
+   STM32 send_status_data()/send_ext_status_data() → USART1 → Flask receive_data() → /vehicle_status → Vue
+   ★ 现含扩展字段: 编码器位置、控制模式、故障码预留、电池预留
 
 4. GPS → Flask → Vue 地图 (已实现)
    GPS Module → Modbus RTU → gps_collection_thread → WGS84→GCJ02 → /updateData → MapContainer
-   来源: app.py:415-499, website/src/components/MapContainer.vue
 
 5. USB 摄像头 → Flask MJPEG → 页面视频 (已实现)
    VideoCamera.update() → JPEG encode → /video_feed → 浏览器 MJPEG 流
-   来源: app.py:75-266, 仅备用模板页 templates/index.html 显示
+
+6. ★ ROS /cmd_vel → STM32 车辆动作 (已实现，阶段3)
+   roslaunch spraying_car_base base.launch → subscribe /cmd_vel → vehicle_protocol.py → serial → STM32
+   含 dry_run 测试、cmd_timeout 安全停车、扩展状态优先+旧状态回退
 ```
 
 ### 半成品链路
 
 ```
-6. LiDAR → ROS Driver → /unilidar/cloud (半成品)
+7. LiDAR → ROS Driver → /unilidar/cloud (半成品)
    L1RM → USB → unitree_lidar_ros → /unilidar/cloud + /unilidar/imu
-   可以运行，但数据不参与任何控制回路
+   可以运行，独立于控制回路
 
-7. /unilidar/cloud → point_lio_unilidar → PCD 地图 (半成品)
+8. /unilidar/cloud → point_lio_unilidar → PCD 地图 (半成品)
    SLAM 可以建图，但地图不能被导航系统使用
+
+9. ★ /cmd_vel 已可驱动车辆，但中间缺少规划层 (半成品)
+   建图 → PCD地图 → move_base → /cmd_vel 的完整链路尚未闭合
 ```
 
 ### 文档提到但源码未实现的链路
@@ -679,12 +748,15 @@ roslaunch point_lio_unilidar mapping_unilidar_l1.launch rviz:=false
 |------|-------------|---------|------|---------|
 | **STM32 编译** | Keil MDK: 打开 `MDK-ARM/spraying_car.uvprojx` → Build | Windows/MDK | ARM Compiler 5, CubeMX FW_F4 V1.28.1 | 生成 `.hex/.axf` |
 | **STM32 烧录** | Keil: Flash → Download (J-Link SWD 8000kHz) | — | J-Link 调试器 | 上电后 OLED 显示 "UART COMM INIT" |
+| **协议测试** ★ | `cd web/upper && python3 test_vehicle_protocol.py` | Orange Pi / 开发机 | Python 3.8+ | 17 tests OK |
 | **上位机 Python 依赖** | `pip3 install flask flask-cors pyserial opencv-python numpy` | Orange Pi 5B | Python 3.8+ | `python3 -c "import flask, serial, cv2"` |
 | **上位机启动** | `cd web/upper && python3 start.py` | Orange Pi 5B | 串口 `/dev/ttyS3`, GPS `/dev/ttyUSB0` | `curl http://127.0.0.1:5000/vehicle_status` |
 | **前端构建** | `cd web/upper/website && npm install && npm run build` | 开发机或 Orange Pi | Node.js 18+ | 检查 `dist/index.html` 存在 |
 | **前端访问** | 浏览器 `http://[IP]:5000/app` | 任意浏览器 | — | 看到监控页和控制页 |
 | **frp 启动** | `frpc -c web/upper/deploy/frpc.ini` | Orange Pi 5B | frp 客户端 | 公网访问 `http://[公网IP]:5000/app` |
 | **ROS roscore** | `source /opt/ros/noetic/setup.bash && roscore` | Orange Pi 5B | ROS Noetic | `rostopic list` 显示 `/rosout` |
+| **ROS 编译** ★ | `cd ros/catkin_ws && catkin_make` | Orange Pi 5B | ROS Noetic, Python 3 | 编译成功无错误 |
+| **ROS 底盘 dry_run** ★ | `roslaunch spraying_car_base base.launch` | Orange Pi 5B | 上层启动即可 | 日志: `[dry_run] would send ext_status_query packet=...` |
 | **LiDAR 驱动** | `roslaunch unitree_lidar_ros run_without_rviz.launch` | Orange Pi 5B | LiDAR 接 USB | `rostopic echo /unilidar/cloud` |
 | **SLAM 建图** | `roslaunch point_lio_unilidar mapping_unilidar_l1.launch` | Orange Pi 5B | LiDAR 驱动先启动 | `rostopic echo /pointlio/odom` |
 
@@ -716,19 +788,23 @@ roslaunch point_lio_unilidar mapping_unilidar_l1.launch rviz:=false
 | `firmware/spraying_car_lower/README.md` | ★★★ | 固件基本说明 | 基本有效 | 信息较简略 |
 | `web/upper/docs/使用文档.md` | ★★★★★ | 上位机部署、启动、API 测试、FAQ | 最新 | 最权威的上位机使用文档 |
 | `ros/catkin_ws/src/third_party/catkin_point_lio_unilidar/AGENTS.md` | ★★★★★ | point_lio 编译、启动、调试、环境问题 | 最新 | 重要：记录了 conda PATH、OHCI USB 等坑 |
-| `ros/catkin_ws/src/spraying_car_base/README.md` | ★★★ | 底盘包设计规划（仅设计，无实现） | 有效 | 作为设计文档参考 |
-| `ros/catkin_ws/src/spraying_car_navigation/README.md` | ★★★ | 导航包设计规划（仅设计，无实现） | 有效 | 作为设计文档参考 |
+| `ros/catkin_ws/src/spraying_car_base/README.md` | ★★★★ | 底盘包设计 + 实际实现详情 | **已过期**（实现已超出设计文档范围） | 参考 `docs/ROS_BASE_BRIDGE.md` |
+| `ros/catkin_ws/src/spraying_car_navigation/README.md` | ★★★ | 导航包设计规划（仅设计，无实现） | 有效 | 待实现 |
+| `docs/STM32_UART_PROTOCOL.md` ★ | ★★★★★ | 串口协议完整说明（含新扩展协议 0x06/0x07） | 最新 | 阶段4产物 |
+| `docs/ROS_BASE_BRIDGE.md` ★ | ★★★★★ | ROS 底盘桥接说明（含 dry_run 测试方法） | 最新 | 阶段3产物 |
 | `web/upper/trash/` 下各文件 | ★ | 旧 MQTT、旧 GPS 代码 | **已过期** | 仅供参考 |
 | `Gap_Analysis_and_Roadmap.md` | — | **不存在** | — | 未找到 |
 | `果园车设计.md` | — | **不存在** | — | 未找到 |
 
-### 只在文档中提到但源码未实现的功能
+### 只在文档中提到但源码未实现的功能（阶段4后更新）
 
-- `spraying_car_base/README.md` 描述的 `/cmd_vel` 桥接、odom 发布
 - `spraying_car_navigation/README.md` 描述的 move_base/TEB/AMCL 配置
 - `spraying_car_slam/README.md` 描述的 SLAM 封装 launch 文件
 - `spraying_car_tools/README.md` 描述的调试脚本（serial_test.py 等）
 - `spraying_car_waypoint/README.md` 描述的 waypoint 自动路线
+
+### 已从"仅文档"升级为"已实现"
+- ★ `spraying_car_base` 的 `/cmd_vel` 桥接、`/base_state` 发布、`cmd_timeout` 安全停车 (阶段3)
 
 ---
 
@@ -749,17 +825,22 @@ roslaunch point_lio_unilidar mapping_unilidar_l1.launch rviz:=false
 | 9 | OLED 调试显示 | `OLED.c`, `upper.c` DEBUG_MODE | 可通过宏关闭 |
 | 10 | USB CDC 数据镜像 | `upper.c:181, 459` | 调试用 |
 | 11 | frp 公网访问 | `deploy/frpc.ini` | 已配置 |
-| 12 | STM32 状态回传 (4 字节) | `upper.c:477-481` | 数据不完整 |
+| 12 | STM32 状态回传 (扩展26字节) ★ | `upper.c:552-593`, `vehicle_protocol.py:187` | 含编码器/控制模式/故障预留/电池预留 |
+| 13 | 串口协议独立模块 ★ | `web/upper/vehicle_protocol.py` | Flask 和 ROS 共用 |
+| 14 | 串口协议单元测试 ★ | `web/upper/test_vehicle_protocol.py` | 17 tests, 全部通过 |
+| 15 | ROS /cmd_vel → STM32 桥接 ★ | `ros/.../spraying_car_base/scripts/vehicle_base_node.py` | dry_run 已验证，含安全停车 |
 
 ### 13.2 部分实现/半成品
 
 | 序号 | 功能 | 已有文件 | 缺失 | 状态 |
 |------|------|---------|------|------|
-| 1 | point_lio_unilidar 建图 | 完整源码已编译 | 与底盘控制无桥接 | LiDAR+SLAM 可独立运行 |
+| 1 | point_lio_unilidar 建图 | 完整源码已编译 | 与导航控制未形成闭环 | LiDAR+SLAM 可独立运行 |
 | 2 | unitree_lidar_ros 驱动 | 完整源码已编译 | 数据仅发布到 ROS topic | 可独立发布点云和 IMU |
 | 3 | Apple_leaf_detection.rknn 模型 | 模型文件 4.1MB | 无推理代码，未接入系统 | 孤立文件 |
 | 4 | 电机速度控制 | DAC 电压输出 | 无实际车速反馈/标定 | 开环控制 |
 | 5 | Flask 备用控制面板 | templates/index.html (1795行) | 不再维护 | 功能可用但不推荐 |
+| 6 | ROS 扩展状态协议 ★ | STM32 26字节 0x07 + Python/ROS 解析 | 转向编码器底层仍是int16_t, 电池/故障为占位 | 协议框架就绪，待真实数据源 |
+| 7 | ROS 底盘桥接 ★ | vehicle_base_node.py 453行 | 仅 dry_run 验证，实车未联调 | 待实车测试 |
 
 ### 13.3 文档提到但源码未形成闭环
 
@@ -787,149 +868,109 @@ roslaunch point_lio_unilidar mapping_unilidar_l1.launch rviz:=false
 
 | 目标能力 | 当前状态 | 缺失内容 | 涉及目录/文件 | 建议优先级 | 风险 |
 |----------|---------|---------|-------------|-----------|------|
-| 1. ROS 底盘节点 | 无 | Python/C++ 节点，发布/订阅 | `spraying_car_base/` | **P0** | 需处理串口互斥 |
-| 2. /cmd_vel → STM32 控制转换 | 无 | 速度分解为差速/阿克曼，转向角映射 | `spraying_car_base/scripts/` | **P0** | 需实车标定速度映射 |
-| 3. STM32 扩展状态回传 | 仅 4 字节 | 轮速、转向角、编码器值、电池电压 | `upper.c`, `app.py` | **P0** | 需修改上下位机协议 |
-| 4. /odom 或轮速里程计 | 无 | 基于轮速或编码器的里程计 | `spraying_car_base/` | **P0** | 当前无轮速编码器硬件 |
-| 5. TF / URDF | 无 | URDF 文件，TF 广播 (base_link/odom/map) | `spraying_car_description/` | **P1** | 需测量车辆几何参数 |
-| 6. L1RM 驱动 | ✓ 已编译 | 只需正确连接 | `third_party/unilidar_sdk/` | **P1** | OHCI USB 不稳定 |
-| 7. point_lio 建图 | ✓ 已编译 | 需与 TF 树对齐 | `third_party/point_lio_unilidar/` | **P1** | 需修正 TF 帧 |
-| 8. 地图保存 | ✓ PCD 输出 | 需转换为 2D 导航地图格式 | `spraying_car_slam/` | **P1** | PCD→PGM+YAML 转换 |
-| 9. 2D/3D 地图转换 | 无 | 3D 点云 → 2D costmap | `spraying_car_slam/` | **P1** | 需要 pcl_ros 或 octomap |
-| 10. move_base/TEB 导航 | 无 | launch 文件，yaml 参数配置 | `spraying_car_navigation/` | **P2** | 依赖前项完成 |
-| 11. 局部避障 costmap | 无 | costmap 配置 | `spraying_car_navigation/config/` | **P2** | 依赖地图和 odom |
-| 12. waypoint 路线执行 | 无 | waypoint 文件，执行引擎 | `spraying_car_waypoint/` | **P2** | 需考虑田间边界 |
-| 13. Web 与 ROS 后端融合 | 无 | CONTROL_BACKEND 切换机制 | `app.py` | **P2** | 架构决策：Flask 内嵌 vs 独立 rosbridge |
-| 14. 控制后端切换 serial/ros | 无 | 环境变量 + 代码分支 | `app.py` | **P2** | 避免串口冲突 |
-| 15. 安全策略和急停 | 部分 | ROS 侧急停话题，硬件急停 | `spraying_car_base/`, STM32 | **P2** | 硬件急停独立于软件 |
+| 1. ROS 底盘节点 | **✓ 已实现** | 实车联调 | `spraying_car_base/` | — | 串口互斥(需停Flask) |
+| 2. /cmd_vel → STM32 控制转换 | **✓ 已实现** | 真实速度标定 | `vehicle_base_node.py` | — | 档位-vs-车速未标定 |
+| 3. STM32 扩展状态回传 | **✓ 已实现(26字节)** | 电池/故障/安全/轮速的真实数据源 | `upper.c`, `turn.c`, `car_drive.c` | **P1** | 编码器int16_t需改int32_t |
+| 4. 串口协议独立模块 | **✓ 已实现** | — | `vehicle_protocol.py` | — | — |
+| 5. /odom 或轮速里程计 | 无 | 轮速编码器硬件 + 里程计算法 | `spraying_car_base/` | **P0** | 当前无轮速编码器硬件 |
+| 6. TF / URDF | 无 | URDF 文件，TF 广播 (base_link/odom/map) | `spraying_car_description/` | **P1** | 需测量车辆几何参数 |
+| 7. L1RM 驱动 | ✓ 已编译 | 只需正确连接 | `third_party/unilidar_sdk/` | **P1** | OHCI USB 不稳定 |
+| 8. point_lio 建图 | ✓ 已编译 | 需与 TF 树对齐 | `third_party/point_lio_unilidar/` | **P1** | 需修正 TF 帧 |
+| 9. 地图保存 | ✓ PCD 输出 | 需转换为 2D 导航地图格式 | `spraying_car_slam/` | **P1** | PCD→PGM+YAML 转换 |
+| 10. 2D/3D 地图转换 | 无 | 3D 点云 → 2D costmap | `spraying_car_slam/` | **P1** | 需要 pcl_ros 或 octomap |
+| 11. move_base/TEB 导航 | 无 | launch 文件，yaml 参数配置 | `spraying_car_navigation/` | **P2** | 依赖前项完成 |
+| 12. 局部避障 costmap | 无 | costmap 配置 | `spraying_car_navigation/config/` | **P2** | 依赖地图和 odom |
+| 13. waypoint 路线执行 | 无 | waypoint 文件，执行引擎 | `spraying_car_waypoint/` | **P2** | 需考虑田间边界 |
+| 14. Web 与 ROS 后端融合 | 部分 | CONTROL_BACKEND 切换机制 | `app.py` | **P2** | 架构决策 |
+| 15. 控制后端切换 serial/ros | 无 | 环境变量 + 代码分支 | `app.py` | **P2** | 避免串口冲突 |
+| 16. 安全策略和急停 | 部分 | ROS 侧急停话题，硬件急停 | `spraying_car_base/`, STM32 | **P2** | 硬件急停独立于软件 |
 
 ---
 
 ## 15. 后续推荐开发顺序
 
-### 阶段 1：固化文档和目录结构
+### ✅ 阶段 1：固化文档和目录结构 【已完成】
+### ✅ 阶段 2：抽离串口协议 【已完成】
+### ✅ 阶段 3：实现 ROS 底盘桥接 【已完成】
+### ✅ 阶段 4：扩展 STM32 状态包（0x06/0x07） 【已完成】
 
-- **目标**: 建立清晰可交接的代码基线
-- **要修改的目录**: `docs/`（新增本文档及后续文档）、`README.md`（填写内容）
-- **不应该动的目录**: `firmware/`, `web/`, `ros/`（不动源码）
-- **输入**: 当前仓库状态
-- **输出**: 完整的项目说明文档体系
-- **验收**: 新开发者可根据文档理解系统
-- **风险**: 低
+已完成文件:
+- `web/upper/vehicle_protocol.py` (协议独立模块)
+- `web/upper/test_vehicle_protocol.py` (17 tests, OK)
+- `ros/catkin_ws/src/spraying_car_base/scripts/vehicle_base_node.py` (ROS 底盘节点)
+- `ros/catkin_ws/src/spraying_car_base/config/base.yaml` (节点配置)
+- `ros/catkin_ws/src/spraying_car_base/launch/base.launch` (启动文件)
+- `firmware/.../upper.c` + `upper.h` (新增 0x06/0x07 扩展状态)
+- `firmware/.../turn.c` + `turn.h` (新增 getter 函数)
+- `firmware/.../car_drive.c` + `car_drive.h` (新增 get_fault_code/get_battery_mv)
+- `docs/STM32_UART_PROTOCOL.md` (协议文档)
+- `docs/ROS_BASE_BRIDGE.md` (ROS 桥接文档)
+- `web/upper/app.py` (改用 vehicle_protocol.py, 支持扩展状态)
 
-### 阶段 2：抽离串口协议
-
-- **目标**: 将串口协议独立为 Python 模块，Flask 和 ROS 节点共用
-- **要修改的目录**: `web/upper/`（抽离协议代码为独立 .py 文件）、`ros/catkin_ws/src/spraying_car_base/`（新建节点）
-- **不应该动的目录**: `firmware/`（不动 STM32）
-- **输入**: `app.py` 中的协议实现
-- **输出**: `serial_protocol.py` 独立模块，支持 Flask 和 ROS 双调用
-- **验收**: 两个进程可共享协议模块而不冲突
-- **风险**: 低（代码重构，不改变功能）
-
-### 阶段 3：新增 ROS 工作区
-
-- **目标**: 建立可编译的 ROS 工作区骨架（package.xml + CMakeLists.txt 补齐）
-- **要修改的目录**: `ros/catkin_ws/src/spraying_car_*/`（为骨架包创建实际文件）
-- **不应该动的目录**: `third_party/`（不修改第三方包）、`firmware/`、`web/`
-- **输入**: 各包 README 中的设计规范
-- **输出**: 8 个包均可被 catkin_make 编译通过
-- **验收**: `catkin_make` 成功，`rospack list` 可见
-- **风险**: 低
-
-### 阶段 4：实现 ROS 底盘桥接
-
-- **目标**: 实现 `/cmd_vel` → STM32 控制转换机器人
-- **要修改的目录**: `spraying_car_base/`（新建 Python 节点）
-- **不应该动的目录**: `firmware/`（不动 STM32 协议格式）
-- **输入**: 抽离的串口协议模块、车辆运动学模型
-- **输出**: `vehicle_base_node.py` 订阅 `/cmd_vel`，转换为串口命令
-- **验收**: `rostopic pub /cmd_vel` 能驱动车辆运动
-- **风险**: **中**（需要实车标定速度/转向映射关系）
-
-### 阶段 5：扩展 STM32 状态包
-
-- **目标**: 增加轮速编码器值、转向角、电池电压到状态回传
-- **要修改的目录**: `firmware/spraying_car_lower/Core/Src/upper.c`（扩展 send_status_data）
-- **不应该动的目录**: `turn.c`, `car_drive.c`（控制逻辑不动）
-- **输入**: 新增传感器采集代码
-- **输出**: 状态包从 4 字节扩展至 20+ 字节，含编码器、电压等
-- **验收**: 上位机能正确解析扩展状态包
-- **风险**: **高**（需要硬件支持轮速编码器、ADC 电压采集，需修改上下位机协议）
-
-### 阶段 6：建立 TF/URDF
+### 阶段 5：建立 TF/URDF ★ 下一阶段
 
 - **目标**: 创建机器人 URDF 模型，广播标准 TF 树
 - **要修改的目录**: `spraying_car_description/`
+- **不应该动的目录**: `third_party/`（不动 SLAM 上游）、`firmware/`
 - **输入**: 车辆几何测量（轴距、轮距、雷达安装位置）
-- **输出**: URDF 文件，TF 广播节点
-- **验收**: `rosrun tf view_frames` 显示正确的 TF 树
-- **风险**: 低
+- **输出**: URDF 文件 + TF 广播节点
+- **验收**: `rosrun tf view_frames` 显示正确 TF 树
+- **风险**: 低（URDF/静态 TF 不依赖轮速）
+- **优先级**: P1
 
-### 阶段 7：接入 L1RM 和 point_lio
+### 阶段 6：接入 L1RM 和 point_lio (bringup 整合)
 
 - **目标**: 将建图流程整合进 bringup launch，配置正确的 TF 帧
 - **要修改的目录**: `spraying_car_bringup/`, `spraying_car_slam/`
 - **不应该动的目录**: `third_party/catkin_point_lio_unilidar/`（上游不改）
 - **输入**: 已有的 unitree_lidar_ros + point_lio_unilidar
 - **输出**: 一键启动 launch 文件，TF 帧对齐到标准树
-- **验收**: 启动一次建图 → 保存 PCD 地图
-- **风险**: **中**（Orange Pi GPU 不支持 rviz，需远程显示；OHCI USB 不稳定）
+- **验收**: 单次启动建图 → 保存 PCD 地图
+- **风险**: **中**（Orange Pi GPU 不支持 rviz；OHCI USB 不稳定）
 
-### 阶段 8：保存地图
+### 阶段 7：补齐状态链路（轮速/编码器/电池/故障/CRC）★ 高优先级
 
-- **目标**: 保存 PCD 地图并转换为 2D 导航地图
+- **目标**: 补全真实状态数据源，为正式 `/odom` 和导航做准备
+- **要修改的目录**: `firmware/`（硬件采集）, `upper.c`（填充占位字段）
+- **不应该动的目录**: `turn.c` PID 控制逻辑
+- **输入**: 轮速编码器硬件, ADC 电压采集, 故障检测电路
+- **输出**: 转向编码器 int32_t 改造, 真实电池电压, 轮速编码器值, CRC 校验
+- **验收**: `battery_mv > 0`, `fault_code` 有意义, 编码器不溢出
+- **风险**: **高**（需要硬件改造）
+
+### 阶段 8：发布正式 /odom 和喷涂状态
+
+- **目标**: 基于轮速/编码器/GPS 融合发布可靠里程计
+- **要修改的目录**: `spraying_car_base/`, `spraying_car_msgs/`
+- **输入**: 阶段7的硬件数据
+- **输出**: `/odom` (nav_msgs/Odometry), `VehicleState.msg`
+- **验收**: `/odom` 数据与实车运动匹配
+- **风险**: **高**（需要实车里程计标定）
+
+### 阶段 9：保存地图 + 2D 转换
+
+- **目标**: SLAM PCD → 2D 导航地图格式
 - **要修改的目录**: `spraying_car_slam/`, `maps/`
 - **输入**: point_lio 输出的 PCD
-- **输出**: `maps/farm_map.pgm` + `maps/farm_map.yaml`
-- **验收**: map_server 可加载地图，rviz 可显示
-- **风险**: 低（纯软件转换）
+- **输出**: `maps/farm_map.pgm` + `farm_map.yaml`
+- **验收**: map_server 可加载地图
 
-### 阶段 9：接入 move_base/TEB
+### 阶段 10：接入 move_base/TEB
 
 - **目标**: 实现全局 + 局部路径规划
 - **要修改的目录**: `spraying_car_navigation/`
-- **输入**: 地图、底盘里程计、TF 树
+- **输入**: 地图、里程计、TF 树
 - **输出**: move_base 可接收目标点并生成 /cmd_vel
 - **验收**: rviz 中设定导航目标，车辆跟踪路径
-- **风险**: **高**（需要在真实环境中调参，农业场景的 costmap 配置不同）
+- **风险**: **高**（需要在真实环境中调参）
 
-### 阶段 10：实现 waypoint 路线
+### 阶段 11：waypoint 路线 + Flask CONTROL_BACKEND
 
-- **目标**: 实现预先录制的路线自动执行
-- **要修改的目录**: `spraying_car_waypoint/`
-- **输入**: waypoint 列表、move_base
-- **输出**: 可录制、回放路线的工具
-- **验收**: 加载路线后自动走完全程
-- **风险**: **中**（需要行间导航策略，不仅仅是到点）
+- **目标**: 实现路线执行 + 控制后端切换
+- **要修改的目录**: `spraying_car_waypoint/`, `web/upper/app.py`
+- **输出**: 可录制、回放路线；`CONTROL_BACKEND=ros` 时 Flask 通过 ROS topic 通信
 
-### 阶段 11：Flask 增加 CONTROL_BACKEND
-
-- **目标**: Flask 支持 serial 或 ros 两种控制后端
-- **要修改的目录**: `web/upper/app.py`
-- **不应该动的目录**: `website/`（前端不变）
-- **输入**: 阶段 4 的 ROS 底盘节点
-- **输出**: `CONTROL_BACKEND=ros` 时 Flask 通过 ROS topic 通信
-- **验收**: 切换环境变量后，Vue 控制命令到达正确的后端
-- **风险**: **中**（需设计 ROS ↔ Flask 之间的通信机制）
-
-### 阶段 12：Vue 增加自动驾驶入口
-
-- **目标**: 前端增加导航目标点设定、路线选择、SLAM 状态显示
-- **要修改的目录**: `website/src/`
-- **输入**: ROS 后端 API / rosbridge
-- **输出**: 新的 Vue 页面或组件
-- **验收**: 可在前端设定导航目标、查看全局/局部 costmap
-- **风险**: 低
-
-### 阶段 13：完善安全测试清单
-
-- **目标**: 编写安全测试文档和测试流程
-- **要修改的目录**: `docs/`
-- **输入**: 上述各阶段的实现
-- **输出**: 安全测试 checklist
-- **验收**: 按清单执行测试并记录
-- **风险**: 低
+### 阶段 12：Vue 增加自动驾驶入口 + 安全测试
 
 ---
 
@@ -963,23 +1004,23 @@ roslaunch point_lio_unilidar mapping_unilidar_l1.launch rviz:=false
 ## 17. 给下一个 AI 助手的关键提醒
 
 1. **不要删除 `trash/` 目录**：其中旧 GPS 和 MQTT 代码可能在理解历史架构时有用。
-2. **不要修改 `third_party/` 中的第三方包**：它们有自己的 git 历史，应通过 launch/config 封装而非修改源码。
-3. **STM32 `car_drive.c` 的三层架构是必须遵守的模式**：`hw_set_*`(纯硬件) → `*_set`(串口入口) → `update_rc_control`(RC 入口)。新增执行器必须遵循此模式。
-4. **串口协议的 checksum 仅计算 data 字段**，不包含 type/len/head/tail。错误理解会导致协议失败。
-5. **Orange Pi 5B 的 OHCI USB 控制器不稳**：LiDAR 必须接 USB 2.0/3.0 (xhci) 口，不要用 USB 1.1 (ohci) 口。
-6. **Orange Pi 上有 conda Python 路径冲突**：ROS 命令前必须 `export PATH="/usr/bin:/opt/ros/noetic/bin:$PATH"`。
-7. **转向编码器是 int16_t**：在边界工况下可能溢出，修改协议时考虑用 int32_t。
-8. **Flask 和 ROS 节点不能同时打开同一串口**：实现 CONTROL_BACKEND 时必须注意互斥。
-9. **Vue 构建 base 路径是 `/app/`**：这与 Flask 的 `/app` 路由匹配。修改 vite.config.js 的 base 时需同步修改 Flask 路由。
-10. **Apple_leaf_detection.rknn 存在但完全未接入系统**：如果要启动图像识别功能，需从头编写推理脚本。
-11. **`battery_voltage` 始终为 0**：在添加真实 ADC 采集之前，不要依赖电池状态逻辑。
-12. **高德地图 API key 硬编码在前端**：`MapContainer.vue` 中的 key `5453af1e113023d3770919da5ce11f23` 是应用密钥，部署时注意安全。
-13. **frpc.ini 包含远程服务器地址**：在公开文档中不要原文贴出。
-14. **当前遥控器 ARBITRATION（仲裁）逻辑让 RC 优先**：自动驾驶开发时需要评估是否需要在 UART 模式时禁用 RC 接管（可通过新增命令实现）。
-15. **ROS 包全部是骨架**：不要期望能直接 `roslaunch spraying_car_bringup`，需要从 `spraying_car_base` 开始逐个实现。
+2. **不要修改 `third_party/` 中的第三方包**：应通过 launch/config 封装而非修改源码。
+3. **STM32 `car_drive.c` 的三层架构是必须遵守的模式**：`hw_set_*`(纯硬件) → `*_set`(串口入口) → `update_rc_control`(RC 入口)。
+4. **串口协议的 checksum 仅计算 data 字段**，不包含 type/len/head/tail。
+5. **所有协议代码现在唯一来源是 `vehicle_protocol.py`**：不要写第二套协议实现。Flask `app.py` 和 ROS `vehicle_base_node.py` 都从该模块导入。修改协议时只改这一处。
+6. **旧 0x05/0xFF 必须保留**：新 0x06/0x07 是扩展，不是替换。Flask 和 ROS 节点都采用"优先 0x07、回退 0x05"策略。
+7. **扩展状态包字段已预留但数据为占位**：`battery_mv=0`, `fault_code=0`, `safety_state=0`。在添加真实硬件采集前不要依赖这些字段。`turn_encoder_position` 是真实数据但底层为 int16_t 转换。
+8. **Orange Pi 5B 的 OHCI USB 控制器不稳**：LiDAR 必须接 USB 2.0/3.0 (xhci) 口。
+9. **Orange Pi 上有 conda Python 路径冲突**：ROS 命令前必须 `export PATH="/usr/bin:/opt/ros/noetic/bin:$PATH"`。
+10. **Flask 和 ROS 节点不能同时打开同一串口**：实车测试 ROS 底盘节点前必须先停止 `web/upper/start.py`。
+11. **ROS 底盘节点 `dry_run=true` 是默认值**：安全测试用 `roslaunch spraying_car_base base.launch`，实车测试用 `dry_run:=false`。
+12. **转向编码器底层仍是 int16_t**：扩展状态包字段已是 int32_t，但在边界(±25000)附近可能溢出，需改为原生 int32_t 计数器。
+13. **Vue 构建 base 路径是 `/app/`**：与 Flask `/app` 路由匹配。不要随意修改。
+14. **Apple_leaf_detection.rknn 存在但完全未接入系统**。
+15. **遥控器仲裁逻辑让 RC 优先**：自动驾驶时可通过新增 UART 命令锁定控制权。
 16. **point_lio 只发布 `camera_init → aft_mapped` TF**：需要增加 `base_link`、`odom`、`map` 等标准 TF 帧才能接入导航。
-17. **STM32 USART2 已初始化但未启用**：可作为备用扩展通讯口，避免和 USART1 抢占。
-18. **文档散落在多个位置**：最权威的参考是各目录下的 CLAUDE.md / AGENTS.md / 使用文档.md。
+17. **协议测试套件已建立**：修改协议后运行 `python3 test_vehicle_protocol.py` 确保不破坏兼容性。
+18. **最新文档**：`docs/STM32_UART_PROTOCOL.md`(协议), `docs/ROS_BASE_BRIDGE.md`(ROS桥接), `firmware/spraying_car_lower/CLAUDE.md`(STM32开发), 本文档(交接)。
 
 ---
 

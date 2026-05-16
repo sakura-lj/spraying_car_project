@@ -1,45 +1,15 @@
-这个包只放自定义消息。
+# spraying_car_msgs
 
-例如你的 STM32 会反馈：
+自研消息包，集中放后续 ROS 化需要共享的数据结构。
 
-车速
-转向角
-电池电压
-控制模式
-急停状态
-故障码
+当前预留消息：
 
-可以定义：
+- `VehicleState.msg`：底盘状态、急停状态、故障码等。
+- `VehicleCmd.msg`：底盘目标速度、目标转向角和使能状态。
 
-spraying_car_msgs/msg/VehicleState.msg
+第一阶段开发仍应优先使用标准消息：
 
-内容示例：
+- `/cmd_vel`：`geometry_msgs/Twist`
+- `/wheel_odom`：`nav_msgs/Odometry`
 
-std_msgs/Header header
-
-float32 speed_mps
-float32 steering_angle_rad
-float32 battery_voltage
-
-uint8 mode
-bool estop
-uint16 fault_code
-
-再定义一个控制指令：
-
-spraying_car_msgs/msg/VehicleCmd.msg
-
-内容：
-
-std_msgs/Header header
-
-float32 target_speed_mps
-float32 target_steering_angle_rad
-bool enable
-
-不过第一版可以先不用自定义消息，只用标准消息：
-
-/cmd_vel              geometry_msgs/Twist
-/wheel_odom           nav_msgs/Odometry
-
-等系统稳定后再加 spraying_car_msgs。
+只有当标准消息无法表达车辆状态时，再逐步使用本包中的自定义消息。

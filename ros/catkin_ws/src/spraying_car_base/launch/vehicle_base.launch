@@ -1,0 +1,9 @@
+<launch>
+  <arg name="dry_run" default="true"/>
+  <arg name="port" default="/dev/ttyS3"/>
+
+  <include file="$(find spraying_car_base)/launch/base.launch">
+    <arg name="dry_run" value="$(arg dry_run)"/>
+    <arg name="port" value="$(arg port)"/>
+  </include>
+</launch>

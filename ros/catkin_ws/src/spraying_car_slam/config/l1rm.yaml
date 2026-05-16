@@ -1,0 +1,9 @@
+# Compatibility alias for earlier project notes.
+# Prefer config/unilidar.yaml for new work.
+
+lidar_port: /dev/ttyUSB0
+lidar_topic: /unilidar/cloud
+imu_topic: /unilidar/imu
+lidar_frame: lidar_link
+imu_frame: imu_link
+note: "Kept for compatibility; active stage-6 wrapper uses launch/unilidar.launch and config/unilidar.yaml."

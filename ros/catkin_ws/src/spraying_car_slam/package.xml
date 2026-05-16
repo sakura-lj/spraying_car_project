@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>spraying_car_slam</name>
+  <version>0.0.1</version>
+  <description>SLAM wrapper package for L1RM and point_lio_unilidar.</description>
+
+  <maintainer email="dev@example.com">Spraying Car Project</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>roslaunch</exec_depend>
+  <exec_depend>map_server</exec_depend>
+  <exec_depend>rviz</exec_depend>
+  <exec_depend>spraying_car_description</exec_depend>
+  <exec_depend>unitree_lidar_ros</exec_depend>
+  <exec_depend>point_lio_unilidar</exec_depend>
+</package>

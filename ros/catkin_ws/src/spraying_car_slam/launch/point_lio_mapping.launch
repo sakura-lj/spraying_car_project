@@ -1,0 +1,45 @@
+<launch>
+  <arg name="rviz" default="false"/>
+  <arg name="lidar_topic" default="/unilidar/cloud"/>
+  <arg name="imu_topic" default="/unilidar/imu"/>
+  <arg name="point_lio_config" default="$(find point_lio_unilidar)/config/unilidar_l1.yaml"/>
+  <arg name="map_frame" default="camera_init"/>
+  <arg name="output_frame" default="aft_mapped"/>
+
+  <!--
+    The upstream mapping_unilidar_l1.launch only exposes the rviz arg. This
+    wrapper uses the same node and config, then overrides the input topics
+    without modifying third_party/catkin_point_lio_unilidar.
+    map_frame/output_frame are recorded for documentation; current upstream code
+    hardcodes camera_init -> aft_mapped.
+  -->
+  <param name="/spraying_car_slam/point_lio_expected_map_frame" value="$(arg map_frame)"/>
+  <param name="/spraying_car_slam/point_lio_expected_output_frame" value="$(arg output_frame)"/>
+
+  <node pkg="point_lio_unilidar"
+        type="pointlio_mapping"
+        name="laserMapping"
+        output="screen">
+    <rosparam command="load" file="$(arg point_lio_config)"/>
+    <param name="common/lid_topic" value="$(arg lidar_topic)"/>
+    <param name="common/imu_topic" value="$(arg imu_topic)"/>
+
+    <!-- Keep upstream mapping_unilidar_l1.launch defaults. -->
+    <param name="use_imu_as_input" type="bool" value="0"/>
+    <param name="prop_at_freq_of_imu" type="bool" value="1"/>
+    <param name="check_satu" type="bool" value="1"/>
+    <param name="init_map_size" type="int" value="10"/>
+    <param name="point_filter_num" type="int" value="1"/>
+    <param name="space_down_sample" type="bool" value="1"/>
+    <param name="filter_size_surf" type="double" value="0.1"/>
+    <param name="filter_size_map" type="double" value="0.1"/>
+    <param name="cube_side_length" type="double" value="1000"/>
+    <param name="runtime_pos_log_enable" type="bool" value="0"/>
+  </node>
+
+  <node pkg="rviz"
+        type="rviz"
+        name="slam_rviz"
+        args="-d $(find spraying_car_slam)/rviz/slam.rviz"
+        if="$(arg rviz)"/>
+</launch>

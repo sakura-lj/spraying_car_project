@@ -1,0 +1,28 @@
+port: /dev/ttyS3
+baud: 115200
+dry_run: true
+
+protocol_module_path: ../../../web/upper
+
+cmd_topic: /cmd_vel
+state_topic: /spraying_car/base_state
+
+control_rate: 20.0
+status_query_rate: 2.0
+ext_status_fallback_timeout: 3.0
+cmd_timeout: 0.5
+
+stop_linear_threshold: 0.03
+max_linear_speed: 0.6
+max_angular_z: 1.0
+
+min_speed_duty: 1
+max_speed_duty: 40
+
+center_turn_position: 51
+min_turn_position: 1
+max_turn_position: 101
+turn_direction_sign: 1
+
+send_spray_off_on_timeout: true
+send_turn_center_on_timeout: true

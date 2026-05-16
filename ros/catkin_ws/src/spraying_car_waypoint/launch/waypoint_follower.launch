@@ -1,0 +1,10 @@
+<launch>
+  <arg name="waypoints" default="$(find spraying_car_waypoint)/config/waypoints.yaml"/>
+
+  <node pkg="spraying_car_waypoint"
+        type="waypoint_follower.py"
+        name="waypoint_follower"
+        output="screen">
+    <param name="waypoints_file" value="$(arg waypoints)"/>
+  </node>
+</launch>

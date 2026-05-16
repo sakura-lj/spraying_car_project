@@ -1,0 +1,16 @@
+<launch>
+  <arg name="map_yaml" default="$(find spraying_car_slam)/../../../../maps/grid/latest.yaml"/>
+  <arg name="use_rviz" default="false"/>
+
+  <node pkg="map_server"
+        type="map_server"
+        name="map_server"
+        args="$(arg map_yaml)"
+        output="screen"/>
+
+  <node pkg="rviz"
+        type="rviz"
+        name="slam_rviz"
+        args="-d $(find spraying_car_slam)/rviz/slam.rviz"
+        if="$(arg use_rviz)"/>
+</launch>

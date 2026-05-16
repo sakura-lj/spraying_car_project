@@ -1,0 +1,36 @@
+# Project-level notes for point_lio_unilidar integration.
+# The actual point_lio node currently reads most runtime parameters from:
+#   third_party/catkin_point_lio_unilidar/src/point_lio_unilidar/config/unilidar_l1.yaml
+# and from params set in launch/point_lio_mapping.launch.
+
+input:
+  lidar_topic: /unilidar/cloud
+  imu_topic: /unilidar/imu
+  expected_lidar_frame: lidar_link
+  expected_imu_frame: imu_link
+
+point_lio_outputs:
+  odom_topic: /pointlio/odom
+  path_topic: /pointlio/path
+  registered_cloud_topic: /pointlio/cloud_registered
+  registered_body_cloud_topic: /pointlio/cloud_registered_body
+  effected_cloud_topic: /pointlio/cloud_effected
+  map_cloud_topic: /pointlio/laser_map
+  odom_parent_frame: camera_init
+  odom_child_frame: aft_mapped
+  body_cloud_frame: body
+
+pcd_save:
+  upstream_path: third_party/catkin_point_lio_unilidar/src/point_lio_unilidar/PCD
+  note: "The upstream code writes scans.pcd/scans_N.pcd under its compiled ROOT_DIR/PCD. This wrapper documents the path but does not change third_party code."
+
+used_by_launch:
+  - "input.lidar_topic is passed to common/lid_topic."
+  - "input.imu_topic is passed to common/imu_topic."
+
+documentation_only:
+  - "expected_lidar_frame"
+  - "expected_imu_frame"
+  - "point_lio_outputs"
+  - "pcd_save"
+  - "PCD output path is not configurable through the current upstream launch."

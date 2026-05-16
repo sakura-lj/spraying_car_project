@@ -1,0 +1,7 @@
+<launch>
+  <arg name="start_base" default="false"/>
+
+  <group if="$(arg start_base)">
+    <include file="$(find spraying_car_base)/launch/vehicle_base.launch"/>
+  </group>
+</launch>

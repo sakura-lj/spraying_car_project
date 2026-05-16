@@ -1,0 +1,36 @@
+# Sensor mounting placeholders for spraying_car_description.
+# Units: meters and radians.
+# Current values are initial estimates and must be replaced after physical measurement.
+#
+# L1RM is mounted near the front of the vehicle and slightly above the chassis.
+# The IMU is the L1RM built-in IMU; no external IMU is installed.
+# GPS is a normal Modbus GPS, not RTK, and its serial port is not fixed yet.
+# LiDAR/GPS/camera extrinsics directly affect mapping, localization, and navigation.
+
+lidar:
+  parent_frame: base_link
+  child_frame: lidar_link
+  xyz: [0.45, 0.0, 0.55]
+  rpy: [0.0, 0.0, 0.0]
+  note: "Estimated L1RM mount; measure on the real vehicle before mapping/navigation."
+
+imu:
+  parent_frame: lidar_link
+  child_frame: imu_link
+  xyz: [0.0, 0.0, 0.0]
+  rpy: [0.0, 0.0, 0.0]
+  note: "L1RM built-in IMU; currently modeled as coincident with lidar_link."
+
+camera:
+  parent_frame: base_link
+  child_frame: camera_link
+  xyz: [0.45, 0.0, 0.65]
+  rpy: [0.0, 0.0, 0.0]
+  note: "Estimated USB camera mount; measure after final installation."
+
+gps:
+  parent_frame: base_link
+  child_frame: gps_link
+  xyz: [0.0, 0.0, 0.70]
+  rpy: [0.0, 0.0, 0.0]
+  note: "Normal Modbus GPS, not RTK; serial port is still undecided."

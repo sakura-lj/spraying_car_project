@@ -1,0 +1,19 @@
+<launch>
+  <arg name="publish_tf" default="false"/>
+  <arg name="point_lio_odom_topic" default="/pointlio/odom"/>
+  <arg name="output_odom_topic" default="/slam_odom"/>
+  <arg name="standard_odom_frame" default="odom"/>
+  <arg name="standard_base_frame" default="base_link"/>
+
+  <node pkg="spraying_car_localization"
+        type="point_lio_frame_bridge.py"
+        name="point_lio_frame_bridge"
+        output="screen">
+    <rosparam command="load" file="$(find spraying_car_localization)/config/point_lio_bridge.yaml"/>
+    <param name="publish_tf" value="$(arg publish_tf)"/>
+    <param name="point_lio_odom_topic" value="$(arg point_lio_odom_topic)"/>
+    <param name="output_odom_topic" value="$(arg output_odom_topic)"/>
+    <param name="standard_odom_frame" value="$(arg standard_odom_frame)"/>
+    <param name="standard_base_frame" value="$(arg standard_base_frame)"/>
+  </node>
+</launch>

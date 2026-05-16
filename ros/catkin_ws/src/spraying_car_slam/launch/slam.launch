@@ -1,0 +1,42 @@
+<launch>
+  <arg name="use_description" default="true"/>
+  <arg name="use_lidar" default="true"/>
+  <arg name="use_point_lio" default="true"/>
+  <arg name="use_rviz" default="false"/>
+  <arg name="lidar_port" default="/dev/ttyUSB0"/>
+  <arg name="lidar_topic" default="/unilidar/cloud"/>
+  <arg name="imu_topic" default="/unilidar/imu"/>
+  <arg name="lidar_frame" default="lidar_link"/>
+  <arg name="imu_frame" default="imu_link"/>
+
+  <group if="$(arg use_description)">
+    <include file="$(find spraying_car_description)/launch/description.launch">
+      <arg name="use_rviz" value="false"/>
+    </include>
+  </group>
+
+  <group if="$(arg use_lidar)">
+    <include file="$(find spraying_car_slam)/launch/unilidar.launch">
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="lidar_topic" value="$(arg lidar_topic)"/>
+      <arg name="imu_topic" value="$(arg imu_topic)"/>
+      <arg name="lidar_frame" value="$(arg lidar_frame)"/>
+      <arg name="imu_frame" value="$(arg imu_frame)"/>
+      <arg name="use_rviz" value="false"/>
+    </include>
+  </group>
+
+  <group if="$(arg use_point_lio)">
+    <include file="$(find spraying_car_slam)/launch/point_lio_mapping.launch">
+      <arg name="rviz" value="false"/>
+      <arg name="lidar_topic" value="$(arg lidar_topic)"/>
+      <arg name="imu_topic" value="$(arg imu_topic)"/>
+    </include>
+  </group>
+
+  <node pkg="rviz"
+        type="rviz"
+        name="slam_rviz"
+        args="-d $(find spraying_car_slam)/rviz/slam.rviz"
+        if="$(arg use_rviz)"/>
+</launch>

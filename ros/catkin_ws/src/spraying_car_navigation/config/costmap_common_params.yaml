@@ -1,0 +1,31 @@
+footprint: [[-0.75, -0.45], [-0.75, 0.45], [0.75, 0.45], [0.75, -0.45]]
+footprint_padding: 0.05
+transform_tolerance: 0.5
+
+obstacle_layer:
+  enabled: true
+  obstacle_range: 5.0
+  raytrace_range: 6.0
+  min_obstacle_height: 0.15
+  max_obstacle_height: 1.8
+  track_unknown_space: false
+  combination_method: 1
+  observation_sources: l1rm_cloud
+  l1rm_cloud:
+    sensor_frame: lidar_link
+    data_type: PointCloud2
+    topic: /unilidar/cloud
+    marking: true
+    clearing: true
+    obstacle_range: 5.0
+    raytrace_range: 6.0
+    min_obstacle_height: 0.15
+    max_obstacle_height: 1.8
+    expected_update_rate: 0.0
+    observation_persistence: 0.0
+    inf_is_valid: false
+
+inflation_layer:
+  enabled: true
+  inflation_radius: 0.6
+  cost_scaling_factor: 3.0

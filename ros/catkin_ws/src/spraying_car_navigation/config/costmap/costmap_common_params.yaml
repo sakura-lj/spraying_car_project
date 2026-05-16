@@ -1,0 +1,12 @@
+obstacle_range: 3.0
+raytrace_range: 3.5
+footprint: [[0.45, 0.32], [0.45, -0.32], [-0.45, -0.32], [-0.45, 0.32]]
+inflation_radius: 0.35
+cost_scaling_factor: 5.0
+
+observation_sources: laser_cloud
+laser_cloud:
+  data_type: PointCloud2
+  topic: /pointlio/cloud_registered
+  marking: true
+  clearing: true

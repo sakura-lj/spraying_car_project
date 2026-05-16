@@ -1,0 +1,9 @@
+<launch>
+  <param name="robot_description"
+         command="$(find xacro)/xacro '$(find spraying_car_description)/urdf/spraying_car.urdf.xacro'"/>
+
+  <node pkg="robot_state_publisher"
+        type="robot_state_publisher"
+        name="robot_state_publisher"
+        output="screen"/>
+</launch>

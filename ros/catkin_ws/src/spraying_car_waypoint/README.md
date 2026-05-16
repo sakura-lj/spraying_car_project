@@ -1,34 +1,17 @@
-这个包负责“规定路线行驶”。
+# spraying_car_waypoint
 
-你可以把固定路线保存成：
+航点路线包，后续用于保存田间路线并按顺序发送目标点给导航栈。
 
-spraying_car_waypoint/config/waypoints.yaml
+当前状态：
 
-示例：
+- 已补齐 catkin 包结构。
+- 已预留 `config/waypoints.yaml`。
+- 已预留 `scripts/waypoint_follower.py`。
+- 已预留 `launch/waypoint_follower.launch`。
+- 暂不向 `move_base` 发送目标。
 
-waypoints:
-  - name: start
-    x: 0.0
-    y: 0.0
-    yaw: 0.0
-    speed: 0.4
+开发边界：
 
-  - name: row_1_start
-    x: 5.0
-    y: 0.0
-    yaw: 0.0
-    speed: 0.4
-
-  - name: row_1_end
-    x: 20.0
-    y: 0.0
-    yaw: 0.0
-    speed: 0.4
-
-  - name: turn_1
-    x: 22.0
-    y: 2.0
-    yaw: 1.57
-    speed: 0.25
-
-节点负责依次发送目标点给 move_base。
+- waypoint 节点不能直接操作 STM32 串口。
+- waypoint 节点只能通过导航栈或 `/cmd_vel` 链路间接控制车辆。
+- 急停状态下不得继续推进航点任务。

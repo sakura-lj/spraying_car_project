@@ -1,0 +1,31 @@
+<launch>
+  <arg name="global_frame" default="odom"/>
+  <arg name="local_global_frame" default="$(arg global_frame)"/>
+  <arg name="robot_base_frame" default="base_link"/>
+  <arg name="odom_topic" default="/slam_odom"/>
+  <arg name="cmd_vel_topic" default="/cmd_vel"/>
+  <arg name="global_costmap_params" default="$(find spraying_car_navigation)/config/global_costmap_params.yaml"/>
+
+  <node pkg="move_base"
+        type="move_base"
+        name="move_base"
+        output="screen">
+    <rosparam file="$(find spraying_car_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap"/>
+    <rosparam file="$(find spraying_car_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap"/>
+    <rosparam file="$(arg global_costmap_params)" command="load"/>
+    <rosparam file="$(find spraying_car_navigation)/config/local_costmap_params.yaml" command="load"/>
+    <rosparam file="$(find spraying_car_navigation)/config/move_base_params.yaml" command="load"/>
+    <rosparam file="$(find spraying_car_navigation)/config/recovery_behaviors.yaml" command="load"/>
+    <rosparam file="$(find spraying_car_navigation)/config/teb_local_planner_params.yaml" command="load"/>
+
+    <param name="global_costmap/global_frame" value="$(arg global_frame)"/>
+    <param name="global_costmap/robot_base_frame" value="$(arg robot_base_frame)"/>
+    <param name="local_costmap/global_frame" value="$(arg local_global_frame)"/>
+    <param name="local_costmap/robot_base_frame" value="$(arg robot_base_frame)"/>
+    <param name="TebLocalPlannerROS/odom_topic" value="$(arg odom_topic)"/>
+    <param name="TebLocalPlannerROS/map_frame" value="$(arg global_frame)"/>
+    <param name="cmd_vel_topic" value="$(arg cmd_vel_topic)"/>
+
+    <remap from="cmd_vel" to="$(arg cmd_vel_topic)"/>
+  </node>
+</launch>

@@ -30,5 +30,5 @@ void upper_init(void);
 int sendData(uint8_t* data, int length);
 void send_imu_data(void);
 void send_status_data(void);
+void send_ext_status_data(void);
 #endif
-

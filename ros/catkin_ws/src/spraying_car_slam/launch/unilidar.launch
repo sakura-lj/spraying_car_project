@@ -1,0 +1,33 @@
+<launch>
+  <arg name="lidar_port" default="/dev/ttyUSB0"/>
+  <arg name="lidar_topic" default="/unilidar/cloud"/>
+  <arg name="imu_topic" default="/unilidar/imu"/>
+  <arg name="lidar_frame" default="lidar_link"/>
+  <arg name="imu_frame" default="imu_link"/>
+  <arg name="use_rviz" default="false"/>
+  <arg name="config_file" default="$(find unitree_lidar_ros)/config/config.yaml"/>
+
+  <!--
+    The upstream launch does not expose port/topic/frame args. This wrapper starts
+    the upstream node directly, loads its default config, then overrides only the
+    ROS parameters needed by this vehicle.
+  -->
+  <node pkg="unitree_lidar_ros"
+        type="unitree_lidar_ros_node"
+        name="unitree_lidar_ros_node"
+        output="screen"
+        respawn="true">
+    <rosparam command="load" file="$(arg config_file)"/>
+    <param name="port" value="$(arg lidar_port)"/>
+    <param name="cloud_topic" value="$(arg lidar_topic)"/>
+    <param name="imu_topic" value="$(arg imu_topic)"/>
+    <param name="cloud_frame" value="$(arg lidar_frame)"/>
+    <param name="imu_frame" value="$(arg imu_frame)"/>
+  </node>
+
+  <node pkg="rviz"
+        type="rviz"
+        name="slam_rviz"
+        args="-d $(find spraying_car_slam)/rviz/slam.rviz"
+        if="$(arg use_rviz)"/>
+</launch>

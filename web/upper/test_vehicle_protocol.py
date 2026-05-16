@@ -106,7 +106,14 @@ class VehicleProtocolTest(unittest.TestCase):
         self.assertEqual(status["fault_code"], 0x1234)
         self.assertEqual(status["battery_mv"], 12000)
         self.assertEqual(status["reserved_u16"], 0xABCD)
+        self.assertEqual(status["ext_status_seq"], 0xABCD)
         self.assertEqual(status["reserved_u32"], 0x12345678)
+
+    def test_parse_ext_status_seq_alias(self):
+        payload = self._build_ext_payload(reserved_u16=37)
+        status = parse_ext_status_response(payload)
+        self.assertEqual(status["reserved_u16"], 37)
+        self.assertEqual(status["ext_status_seq"], 37)
 
     def test_ext_status_little_endian_signed_i32(self):
         payload = self._build_ext_payload(turn_target_encoder=-1, turn_encoder_position=-2147483648)

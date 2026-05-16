@@ -30,7 +30,20 @@ ros/catkin_ws/src/spraying_car_base/
 - `speed_duty`
 - `direction`
 - `is_open`
+- `turn_cmd_position`
+- `turn_target_encoder`
+- `turn_encoder_position`
+- `uart_control_mode`
+- `safety_state`
+- `fault_code`
+- `battery_mv`
 - `connected`
+- `using_ext_status`
+- `ext_status_seq`
+- `ext_status_age`
+- `last_ext_status_time`
+- `raw_ext_status_packet_hex`
+- `raw_ext_status_payload_hex`
 - `last_cmd_time`
 - `mode`
 - `error_count`
@@ -203,9 +216,12 @@ rosrun spraying_car_tools base_state_verification_test.py
 
 转向状态字段说明：
 
-- `turn_cmd_position` 表示 STM32 最近一次收到的串口转向命令位置，范围 `1..101`，`51` 为中位。
+- `turn_cmd_position` 表示 STM32 最近一次收到的 UART 串口转向命令位置，范围 `1..101`，`51` 为中位，不代表真实转向角。
 - `turn_target_encoder` 表示由该目标位置换算出的目标编码器位置。
 - `turn_encoder_position` 表示实际转向编码器反馈。当前未连接步进电机和编码器时该字段不可信，不作为软件状态验证的核心依据。
+- `ext_status_seq` 来自扩展状态包 `byte[20:22]`，每次 STM32 发送 `0x07` 响应递增，用来判断 `/spraying_car/base_state` 是否来自新的扩展状态响应。
+- `raw_ext_status_payload_hex` / `raw_ext_status_packet_hex` 是 ROS 实际收到的扩展状态原始数据。
+- CDC 中的 `EXT TURN:<value> SEQ:<seq> TARGET:<target_encoder> ENC:<encoder_position>` 可用于确认 STM32 发送扩展状态包前 `data[5]` 的值。
 
 ## /cmd_vel 映射规则
 
@@ -240,6 +256,7 @@ rosrun spraying_car_tools base_state_verification_test.py
 - 扩展状态包能返回最近一次串口转向命令、转向目标编码器、转向编码器读数和控制模式。
 - `turn_cmd_position` 是命令状态，不代表真实机械转向已经到位。
 - `turn_encoder_position` 当前来自 TIM5 转向编码器；未连接步进电机/编码器时该字段不可信，且底层读取仍需后续改造为完整 `int32_t` 计数。
+- `ext_status_seq` 只用于区分新旧扩展状态响应，不改变旧 `0x05` 状态包，也不改变 `0x07` 扩展状态包总长度。
 - `battery_mv = 0`：当前无电池 ADC 采集。
 - `fault_code = 0`：当前无故障码系统。
 - `safety_state = 0`：当前无独立硬件急停输入。

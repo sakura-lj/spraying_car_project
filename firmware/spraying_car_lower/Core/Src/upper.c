@@ -100,6 +100,19 @@ static uint8_t txPendingBuffer[TXBUFFER_LEN];
 static volatile uint8_t txBusy = 0;
 static volatile uint8_t txPending = 0;
 static volatile uint16_t txPendingLength = 0;
+static volatile uint8_t last_uart_turn_cmd_position = 51; // 最近一次 UART 转向命令位置，不代表实际转向角
+static volatile uint16_t ext_status_seq = 0;
+
+static uint8_t clamp_uart_turn_position(uint8_t position)
+{
+    if (position < 1) {
+        return 1;
+    }
+    if (position > 101) {
+        return 101;
+    }
+    return position;
+}
 
 static void put_i32_le(uint8_t* data, uint8_t offset, int32_t value)
 {
@@ -123,6 +136,47 @@ static void put_u32_le(uint8_t* data, uint8_t offset, uint32_t value)
     data[offset + 2] = (uint8_t)((value >> 16) & 0xFF);
     data[offset + 3] = (uint8_t)((value >> 24) & 0xFF);
 }
+
+#if DEBUG_MODE
+static void debug_cdc_uart_turn_cmd(uint8_t position)
+{
+    char dbg[32];
+    int n = snprintf(dbg, sizeof(dbg), "UART TURN CMD:%u\r\n", (unsigned int)position);
+    if (n > 0) {
+        DEBUG_CDC_SEND(dbg, (uint16_t)n);
+    }
+}
+
+static void debug_cdc_ext_status(uint8_t turn_position, uint16_t seq, int32_t target_encoder, int32_t encoder_position)
+{
+    char dbg[96];
+    int n = snprintf(
+        dbg,
+        sizeof(dbg),
+        "EXT TURN:%u SEQ:%u TARGET:%ld ENC:%ld\r\n",
+        (unsigned int)turn_position,
+        (unsigned int)seq,
+        (long)target_encoder,
+        (long)encoder_position
+    );
+    if (n > 0) {
+        DEBUG_CDC_SEND(dbg, (uint16_t)n);
+    }
+}
+#else
+static void debug_cdc_uart_turn_cmd(uint8_t position)
+{
+    (void)position;
+}
+
+static void debug_cdc_ext_status(uint8_t turn_position, uint16_t seq, int32_t target_encoder, int32_t encoder_position)
+{
+    (void)turn_position;
+    (void)seq;
+    (void)target_encoder;
+    (void)encoder_position;
+}
+#endif
 
 // 车辆状态控制变量
 extern volatile uint8_t direction_state; // 方向状态：0-停止，1-前进，2-后退
@@ -363,20 +417,25 @@ static void processData(uint8_t type, uint8_t* data, int length)
             break;
             
         case CMD_TURN_CONTROL: // 转向控制命令
+        {
+            uint8_t turn_position = clamp_uart_turn_position(data[0]);
             is_open = 1; // 串口控制时自动开启电源
             set_control_mode(1); // 转向命令同样标记为串口控制
-            set_target_position(data[0]); // 1-101档位
+            last_uart_turn_cmd_position = turn_position;
+            debug_cdc_uart_turn_cmd(turn_position);
+            set_target_position(turn_position); // 1-101档位
             DEBUG_OLED_ShowString(0, 12, "TURN:");
-            DEBUG_OLED_ShowNum(30, 12, data[0], 3);
-            if (data[0] < 51) {
+            DEBUG_OLED_ShowNum(30, 12, turn_position, 3);
+            if (turn_position < 51) {
                 DEBUG_OLED_ShowString(54, 12, "L");
-            } else if (data[0] > 51) {
+            } else if (turn_position > 51) {
                 DEBUG_OLED_ShowString(54, 12, "R");
             } else {
                 DEBUG_OLED_ShowString(54, 12, "C");
             }
             DEBUG_OLED_ShowString(0, 24, "Status: OK");
             break;
+        }
             
         case CMD_STATUS_QUERY: // 状态查询命令
             send_status_data(); // 发送当前状态数据
@@ -552,6 +611,10 @@ void send_status_data(void) {
  */
 void send_ext_status_data(void) {
     uint8_t data[EXT_STATUS_PAYLOAD_LEN];
+    uint8_t turn_position = last_uart_turn_cmd_position;
+    int32_t target_encoder = get_turn_target_encoder();
+    int32_t encoder_position = get_turn_encoder_position();
+    uint16_t seq = ext_status_seq++;
 
     memset(data, 0, sizeof(data));
     data[0] = EXT_STATUS_PROTOCOL_VERSION;
@@ -559,15 +622,17 @@ void send_ext_status_data(void) {
     data[2] = vehicle_speed;                // 车辆速度档位：1-102
     data[3] = direction_state;              // 方向状态：0-停止，1-前进，2-后退
     data[4] = is_open;                      // 电源状态：0-关闭，1-开启
-    data[5] = get_turn_cmd_position();      // 转向命令位置：1-101，51中位
-    put_i32_le(data, 6, get_turn_target_encoder());
-    put_i32_le(data, 10, get_turn_encoder_position());
+    data[5] = turn_position;                // 最近一次 UART 转向命令位置：1-101，51中位
+    put_i32_le(data, 6, target_encoder);
+    put_i32_le(data, 10, encoder_position);
     data[14] = get_control_mode();          // 0-遥控器控制，1-串口控制
     data[15] = 0;                           // safety_state: 当前无独立硬件急停输入
     put_u16_le(data, 16, get_fault_code()); // 当前无故障码系统，返回0
     put_u16_le(data, 18, get_battery_mv()); // 当前无电池ADC采集，返回0
-    put_u16_le(data, 20, 0);                // reserved_u16
+    put_u16_le(data, 20, seq);              // reserved_u16: 临时用作 ext_status_seq
     put_u32_le(data, 22, 0);                // reserved_u32
+
+    debug_cdc_ext_status(turn_position, seq, target_encoder, encoder_position);
 
     uint8_t packet[BUFFER_SIZE + 6];
     int length = packData(packet, CMD_EXT_STATUS_RESPONSE, data, EXT_STATUS_PAYLOAD_LEN);

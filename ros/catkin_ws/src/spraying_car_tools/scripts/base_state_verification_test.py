@@ -160,6 +160,18 @@ class BaseStateVerifier:
         except (TypeError, ValueError):
             return None
 
+    def get_raw_ext_hex(self, state):
+        return state.get("raw_ext_status_payload_hex") or state.get("raw_ext_status_packet_hex")
+
+    def ordered_unique(self, values):
+        seen = []
+        for value in values:
+            if value is None:
+                continue
+            if value not in seen:
+                seen.append(value)
+        return seen
+
     def log_state_summary(self, name, state):
         fields = [
             "speed_duty",
@@ -170,6 +182,8 @@ class BaseStateVerifier:
             "turn_encoder_position",
             "uart_control_mode",
             "using_ext_status",
+            "ext_status_seq",
+            "ext_status_age",
         ]
         summary = ", ".join("%s=%s" % (field, state.get(field)) for field in fields)
         rospy.loginfo("State after %s: %s", name, summary)
@@ -181,10 +195,26 @@ class BaseStateVerifier:
         positions = []
         targets = []
         encoders = []
-        for _, state in samples:
+        seqs = []
+        for stamp, state in samples:
+            seq = self.get_int_field(state, "ext_status_seq")
+            seqs.append(seq)
             positions.append(self.get_int_field(state, "turn_cmd_position"))
             targets.append(self.get_int_field(state, "turn_target_encoder"))
             encoders.append(self.get_int_field(state, "turn_encoder_position"))
+            rospy.loginfo(
+                "%s sample: stamp=%.3f ext_status_seq=%s using_ext_status=%s "
+                "turn_cmd_position=%s turn_target_encoder=%s turn_encoder_position=%s raw_ext=%s",
+                name,
+                stamp.to_sec(),
+                seq,
+                state.get("using_ext_status"),
+                self.get_int_field(state, "turn_cmd_position"),
+                self.get_int_field(state, "turn_target_encoder"),
+                self.get_int_field(state, "turn_encoder_position"),
+                self.get_raw_ext_hex(state),
+            )
+        rospy.loginfo("%s: ext_status_seq series=%s unique=%s", name, seqs, self.ordered_unique(seqs))
         rospy.loginfo("%s: turn_cmd_position series=%s", name, positions)
         rospy.loginfo("%s: turn_target_encoder series=%s", name, targets)
         rospy.loginfo(
@@ -289,6 +319,30 @@ class BaseStateVerifier:
         observed_position = offset_positions[-1] if offset_positions else (
             valid_positions[-1] if valid_positions else None
         )
+
+        seqs = [
+            self.get_int_field(sample, "ext_status_seq")
+            for _, sample in samples
+            if self.get_int_field(sample, "ext_status_seq") is not None
+        ]
+        unique_seqs = self.ordered_unique(seqs)
+        if len(unique_seqs) >= 2:
+            self.results.pass_("%s: ext_status_seq changed during turn: %s" % (name, unique_seqs))
+        elif unique_seqs:
+            self.results.fail(
+                "%s: ext_status_seq did not change during turn (%s); extended status may be cached"
+                % (name, unique_seqs[0])
+            )
+        else:
+            self.results.fail("%s: ext_status_seq missing; cannot prove fresh 0x07 extended status samples" % name)
+
+        if len(unique_seqs) >= 2 and not offset_positions:
+            self.results.fail(
+                "%s: fresh extended status samples stayed at turn_cmd_position=%d. "
+                "If CDC shows TURN/UART TURN CMD, STM32 received the control command but "
+                "extended status data[5] still did not carry last_uart_turn_cmd_position."
+                % (name, self.center_turn_position)
+            )
 
         self.check_turn_position(name, observed_position)
         if name == "left_slow":

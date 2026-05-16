@@ -90,6 +90,18 @@ rosrun spraying_car_tools stm32_cdc_monitor.py _port:=/dev/ttyACM0 _raw_hex:=tru
 rosrun spraying_car_tools base_state_verification_test.py
 ```
 
+只验证转向扩展状态回传时，也可以运行：
+
+```bash
+rosrun spraying_car_tools turn_ext_status_probe.py
+```
+
+该探针会要求输入：
+
+```text
+I_UNDERSTAND_THIS_SENDS_REAL_STM32_TURN_COMMANDS
+```
+
 该步骤通过 `/dev/ttyACM0` 和 `/spraying_car/base_state` 验证 STM32 是否接收并设置了 `direction`、`speed_duty`、`turn_cmd_position` 等软件状态。
 
 当前未连接步进电机和转向编码器时：
@@ -97,13 +109,15 @@ rosrun spraying_car_tools base_state_verification_test.py
 - `turn_cmd_position` 只表示最近一次串口转向命令位置，`51` 为中位。
 - `turn_target_encoder` 是由命令换算出的目标编码器值。
 - `turn_encoder_position` 是实际编码器反馈，未接编码器时不可信。
+- `ext_status_seq` 每个 `0x07` 扩展状态响应递增一次，用于判断 `/spraying_car/base_state` 是否来自新的扩展状态包。
+- CDC 中的 `EXT TURN:<value> SEQ:<seq>` 用于确认 STM32 发送扩展状态包前 `data[5]` 的实际值。
 
 边界：
 
 - `/dev/ttyACM0` 仍然只读，禁止写入。
 - `/dev/ttyS3` 才是控制串口。
 - CDC 状态验证不能替代架空物理方向观察。
-- 软件状态通过后，仍必须人工观察真实转向机械方向。
+- 即使 8F-1c 软件状态通过，仍不能证明真实转向机械方向，后续仍必须人工观察架空物理方向。
 
 ## 真实架空测试
 

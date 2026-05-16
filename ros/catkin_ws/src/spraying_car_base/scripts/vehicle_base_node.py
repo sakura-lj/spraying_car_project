@@ -31,6 +31,9 @@ class VehicleBaseNode:
         self.last_ext_status_time = None
         self.raw_status = None
         self.using_ext_status = False
+        self.ext_status_seq = None
+        self.raw_ext_status_packet_hex = None
+        self.raw_ext_status_payload_hex = None
 
         self.spray_state = 0
         self.speed_duty = self.min_speed_duty
@@ -286,6 +289,13 @@ class VehicleBaseNode:
     def _packet_hex(self, packet):
         return bytes(packet).hex(" ")
 
+    def _payload_hex(self, packet):
+        packet_bytes = bytes(packet)
+        if len(packet_bytes) < 5:
+            return ""
+        length = int(packet_bytes[2])
+        return packet_bytes[3:3 + length].hex(" ")
+
     def read_serial_once(self):
         if self.dry_run or not self.serial or not self.serial.is_open:
             return
@@ -323,9 +333,14 @@ class VehicleBaseNode:
             self.safety_state = int(ext_status["safety_state"])
             self.fault_code = int(ext_status["fault_code"])
             self.battery_mv = int(ext_status["battery_mv"])
+            self.ext_status_seq = int(ext_status.get("ext_status_seq", ext_status.get("reserved_u16", 0)))
+            self.raw_ext_status_packet_hex = self._packet_hex(packet)
+            self.raw_ext_status_payload_hex = self._payload_hex(packet)
             self.raw_status = {
                 "type": "extended",
-                "packet_hex": self._packet_hex(packet),
+                "packet_hex": self.raw_ext_status_packet_hex,
+                "payload_hex": self.raw_ext_status_payload_hex,
+                "ext_status_seq": self.ext_status_seq,
                 "data": ext_status,
             }
             self.using_ext_status = True
@@ -374,6 +389,20 @@ class VehicleBaseNode:
             elapsed = (now - self.last_ext_status_time).to_sec()
         return elapsed >= self.ext_status_fallback_timeout
 
+    def get_ext_status_age(self):
+        if self.last_ext_status_time is None:
+            return None
+        return max(0.0, (rospy.Time.now() - self.last_ext_status_time).to_sec())
+
+    def get_active_ext_status(self):
+        age = self.get_ext_status_age()
+        if age is None:
+            return False, None
+        active = self.using_ext_status and age < self.ext_status_fallback_timeout
+        if self.using_ext_status and not active:
+            self.using_ext_status = False
+        return active, age
+
     def check_cmd_timeout(self):
         now = rospy.Time.now()
         if self.last_cmd_time is None:
@@ -393,6 +422,7 @@ class VehicleBaseNode:
             self.timeout_active = True
 
     def publish_state(self):
+        active_ext_status, ext_status_age = self.get_active_ext_status()
         state = {
             "spray_state": self.spray_state,
             "speed_duty": self.speed_duty,
@@ -406,7 +436,12 @@ class VehicleBaseNode:
             "fault_code": self.fault_code,
             "battery_mv": self.battery_mv,
             "connected": self.connected,
-            "using_ext_status": self.using_ext_status,
+            "using_ext_status": active_ext_status,
+            "ext_status_seq": self.ext_status_seq,
+            "ext_status_age": ext_status_age,
+            "last_ext_status_time": self.last_ext_status_time.to_sec() if self.last_ext_status_time else None,
+            "raw_ext_status_packet_hex": self.raw_ext_status_packet_hex,
+            "raw_ext_status_payload_hex": self.raw_ext_status_payload_hex,
             "last_cmd_time": self.last_cmd_time.to_sec() if self.last_cmd_time else None,
             "mode": "dry_run" if self.dry_run else "serial",
             "error_count": self.error_count,

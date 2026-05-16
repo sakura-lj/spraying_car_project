@@ -56,6 +56,12 @@ rosrun spraying_car_tools stm32_cdc_monitor.py \
 rosrun spraying_car_tools base_state_verification_test.py
 ```
 
+只需要窄范围验证转向扩展状态时，可改用：
+
+```bash
+rosrun spraying_car_tools turn_ext_status_probe.py
+```
+
 脚本会要求输入确认字符串：
 
 ```text
@@ -63,8 +69,13 @@ I_UNDERSTAND_THIS_SENDS_REAL_STM32_COMMANDS
 ```
 
 未输入完全一致的确认字符串时，不会发布非零 `/cmd_vel`。
+`turn_ext_status_probe.py` 使用更窄的确认字符串：
 
-转向步骤会默认保持至少 2 秒，并在保持期间连续记录 `turn_cmd_position`、`turn_target_encoder` 和 `turn_encoder_position` 时间序列。需要延长采样时可使用：
+```text
+I_UNDERSTAND_THIS_SENDS_REAL_STM32_TURN_COMMANDS
+```
+
+转向步骤会默认保持至少 2 秒，并在保持期间连续记录 `turn_cmd_position`、`turn_target_encoder` 和 `turn_encoder_position` 时间序列。脚本还会打印 `ext_status_seq`、`using_ext_status` 和原始扩展状态 payload/packet hex，用来判断 `/spraying_car/base_state` 是否来自新的 `0x07` 扩展状态响应。需要延长采样时可使用：
 
 ```bash
 rosrun spraying_car_tools base_state_verification_test.py _turn_duration:=3.0
@@ -84,6 +95,8 @@ CDC 侧可能看到：
 - `FORWARD`
 - `BACK`
 - `STOP`
+- `UART TURN CMD:<value>`
+- `EXT TURN:<value> SEQ:<seq> TARGET:<target_encoder> ENC:<encoder_position>`
 - 或原始二进制包的 hex 输出
 
 如果日志太多，可以启用关键词过滤：
@@ -104,12 +117,15 @@ rosrun spraying_car_tools stm32_cdc_monitor.py \
 - `left_slow` 和 `right_slow` 后 `turn_cmd_position` 偏离 51，且方向相反
 - `using_ext_status=true`
 - `uart_control_mode=1`，表示串口控制模式
+- 转向保持期间 `ext_status_seq` 持续变化，表示 ROS 收到的是新的扩展状态响应，不是旧缓存
 
 字段语义：
 
-- `turn_cmd_position`：最近一次串口转向命令位置，范围 `1..101`，`51` 为中位。
+- `turn_cmd_position`：最近一次 UART 串口转向命令位置，范围 `1..101`，`51` 为中位，不代表真实转向角。
 - `turn_target_encoder`：根据转向命令计算出的目标编码器位置。
 - `turn_encoder_position`：实际转向编码器反馈。当前未连接步进电机/编码器时该字段不可信，只作为日志参考，不作为本测试的核心 PASS/FAIL 依据。
+- `ext_status_seq`：STM32 每发送一次 `0x07` 扩展状态响应递增一次，用于识别 `/spraying_car/base_state` 是否来自新的扩展状态包。
+- `raw_ext_status_payload_hex` / `raw_ext_status_packet_hex`：ROS 实际收到并解析的扩展状态原始数据。
 
 ## 不能证明的内容
 
@@ -146,7 +162,13 @@ CDC 有命令但 `/spraying_car/base_state` 不变：
 - 检查 `/cmd_vel angular.z` 是否非零。
 - 检查 `turn_direction_sign` 是否为预期。
 - 检查扩展状态包是否真实返回 `turn_cmd_position`。
-- 如果 CDC 中能看到 `aa 04 01 47 47 55`、`aa 04 01 1f 1f 55` 或 `TURN` 文本，但 `turn_cmd_position` 仍为 51，优先检查 STM32 扩展状态中的 `get_turn_cmd_position()` 是否返回了最近一次串口转向命令，而不是实际编码器值或默认中位。
+- 如果 CDC 中能看到 `aa 04 01 47 47 55`、`aa 04 01 1f 1f 55`、`TURN` 或 `UART TURN CMD:<value>`，但 `EXT TURN:<value>` 或 ROS `raw_ext_status_payload_hex` 中 `data[5]` 仍为 51，说明 STM32 已接收控制命令，但扩展状态包 `data[5]` 没有正确携带最近 UART 转向命令。
+
+`ext_status_seq` 不变化：
+
+- `/spraying_car/base_state` 可能仍在重复旧缓存。
+- 检查 STM32 CDC 是否持续输出 `EXT TURN:<value> SEQ:<seq>`。
+- 检查 ROS 是否实际收到新的 `0x07` 包，而不是只收到旧 `0x05` 状态包或无新响应。
 
 `using_ext_status=false`：
 

@@ -215,6 +215,8 @@ def parse_ext_status_response(packet_or_data):
             % (EXT_STATUS_PAYLOAD_LEN, len(data))
         )
 
+    reserved_u16 = _read_u16_le(data, 20)
+
     return {
         "protocol_version": data[0],
         "spray_state": data[1],
@@ -228,7 +230,8 @@ def parse_ext_status_response(packet_or_data):
         "safety_state": data[15],
         "fault_code": _read_u16_le(data, 16),
         "battery_mv": _read_u16_le(data, 18),
-        "reserved_u16": _read_u16_le(data, 20),
+        "reserved_u16": reserved_u16,
+        "ext_status_seq": reserved_u16,
         "reserved_u32": _read_u32_le(data, 22),
     }
 

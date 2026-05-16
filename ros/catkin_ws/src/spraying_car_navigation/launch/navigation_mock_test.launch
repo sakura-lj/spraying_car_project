@@ -1,0 +1,44 @@
+<launch>
+  <arg name="use_rviz" default="false"/>
+  <arg name="base_dry_run" default="true"/>
+  <arg name="cmd_vel_topic" default="/cmd_vel"/>
+  <arg name="mock_publish_obstacle" default="true"/>
+
+  <!-- MOCK/TEST ONLY. Forbidden for real vehicle navigation. -->
+  <include file="$(find spraying_car_description)/launch/description.launch">
+    <arg name="use_rviz" value="false"/>
+  </include>
+
+  <node pkg="spraying_car_tools"
+        type="mock_slam_odom.py"
+        name="mock_slam_odom"
+        output="screen">
+    <param name="publish_tf" value="true"/>
+  </node>
+
+  <node pkg="spraying_car_tools"
+        type="mock_lidar_cloud.py"
+        name="mock_lidar_cloud"
+        output="screen">
+    <param name="publish_obstacle" value="$(arg mock_publish_obstacle)"/>
+  </node>
+
+  <include file="$(find spraying_car_base)/launch/base.launch">
+    <arg name="dry_run" value="$(arg base_dry_run)"/>
+  </include>
+
+  <include file="$(find spraying_car_navigation)/launch/move_base.launch">
+    <arg name="global_frame" value="odom"/>
+    <arg name="local_global_frame" value="odom"/>
+    <arg name="robot_base_frame" value="base_link"/>
+    <arg name="odom_topic" value="/slam_odom"/>
+    <arg name="cmd_vel_topic" value="$(arg cmd_vel_topic)"/>
+    <arg name="global_costmap_params" value="$(find spraying_car_navigation)/config/global_costmap_params.yaml"/>
+  </include>
+
+  <node pkg="rviz"
+        type="rviz"
+        name="navigation_rviz"
+        args="-d $(find spraying_car_navigation)/rviz/navigation.rviz"
+        if="$(arg use_rviz)"/>
+</launch>

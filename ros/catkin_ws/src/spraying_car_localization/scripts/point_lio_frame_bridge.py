@@ -52,6 +52,7 @@ class PointLioFrameBridge:
         self.point_lio_body_frame = rospy.get_param("~point_lio_body_frame", "aft_mapped")
         self.standard_odom_frame = rospy.get_param("~standard_odom_frame", "odom")
         self.standard_base_frame = rospy.get_param("~standard_base_frame", "base_link")
+        self.tf_child_frame = rospy.get_param("~tf_child_frame", "base_footprint")
         self.lidar_frame = rospy.get_param("~lidar_frame", "lidar_link")
         self.publish_tf = rospy.get_param("~publish_tf", False)
         self.republish_odom = rospy.get_param("~republish_odom", True)
@@ -81,37 +82,60 @@ class PointLioFrameBridge:
             self.output_odom_topic,
             self.publish_tf,
         )
+        rospy.loginfo(
+            "point_lio_frame_bridge: TF child frame is %s",
+            self.tf_child_frame,
+        )
         if not self.publish_tf:
             rospy.loginfo("point_lio_frame_bridge: TF publishing is disabled by default")
 
-    def lookup_lidar_to_base(self, stamp):
-        if not self.use_lidar_to_base_tf:
-            return None
-
+    def lookup_transform_matrix(self, target_frame, source_frame, timeout_msg):
         lookup_time = rospy.Time(0)
         timeout = rospy.Duration(self.tf_lookup_timeout)
         try:
             self.tf_listener.waitForTransform(
-                self.lidar_frame,
-                self.standard_base_frame,
+                target_frame,
+                source_frame,
                 lookup_time,
                 timeout,
             )
             trans, rot = self.tf_listener.lookupTransform(
-                self.lidar_frame,
-                self.standard_base_frame,
+                target_frame,
+                source_frame,
                 lookup_time,
             )
             return transform_to_matrix(trans, rot)
         except (tf.Exception, tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as exc:
             rospy.logwarn_throttle(
                 2.0,
-                "point_lio_frame_bridge: cannot lookup %s -> %s TF: %s. Start description.launch first.",
-                self.lidar_frame,
-                self.standard_base_frame,
+                timeout_msg,
+                target_frame,
+                source_frame,
                 exc,
             )
             return None
+
+    def lookup_lidar_to_base(self, stamp):
+        if not self.use_lidar_to_base_tf:
+            return None
+        return self.lookup_transform_matrix(
+            self.lidar_frame,
+            self.standard_base_frame,
+            "point_lio_frame_bridge: cannot lookup %s -> %s TF: %s. Start description.launch first.",
+        )
+
+    def output_tf_pose(self, odom_to_base):
+        if self.tf_child_frame == self.standard_base_frame:
+            return odom_to_base
+
+        base_to_tf_child = self.lookup_transform_matrix(
+            self.standard_base_frame,
+            self.tf_child_frame,
+            "point_lio_frame_bridge: cannot lookup %s -> %s TF for publish_tf: %s.",
+        )
+        if base_to_tf_child is None:
+            return None
+        return concatenate_matrices(odom_to_base, base_to_tf_child)
 
     def odom_callback(self, msg):
         src_world = msg.header.frame_id
@@ -171,11 +195,16 @@ class PointLioFrameBridge:
             self.odom_pub.publish(out)
 
         if self.publish_tf:
+            odom_to_tf_child = self.output_tf_pose(odom_to_base)
+            if odom_to_tf_child is None:
+                return
+            tf_translation = translation_from_matrix(odom_to_tf_child)
+            tf_rotation = normalize_quaternion(quaternion_from_matrix(odom_to_tf_child))
             self.tf_broadcaster.sendTransform(
-                (translation[0], translation[1], translation[2]),
-                (rotation[0], rotation[1], rotation[2], rotation[3]),
+                (tf_translation[0], tf_translation[1], tf_translation[2]),
+                (tf_rotation[0], tf_rotation[1], tf_rotation[2], tf_rotation[3]),
                 out.header.stamp if out.header.stamp != rospy.Time(0) else rospy.Time.now(),
-                self.standard_base_frame,
+                self.tf_child_frame,
                 self.standard_odom_frame,
             )
 

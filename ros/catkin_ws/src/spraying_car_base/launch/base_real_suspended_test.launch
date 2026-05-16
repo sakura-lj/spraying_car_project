@@ -1,0 +1,26 @@
+<launch>
+  <arg name="dry_run" default="true"/>
+  <arg name="port" default="/dev/ttyS3"/>
+  <arg name="max_speed_duty" default="8"/>
+  <arg name="max_linear_speed" default="0.2"/>
+  <arg name="max_angular_z" default="0.5"/>
+  <arg name="cmd_timeout" default="0.4"/>
+  <arg name="turn_direction_sign" default="1"/>
+
+  <node pkg="spraying_car_base"
+        type="vehicle_base_node.py"
+        name="spraying_car_base_node"
+        output="screen"
+        launch-prefix="/bin/bash -c 'echo [SUSPENDED_TEST_ONLY] Only for wheels-off-ground base direction testing.; echo [SUSPENDED_TEST_ONLY] Wheels must be off ground and Flask must be stopped.; echo [SUSPENDED_TEST_ONLY] dry_run=false will open /dev/ttyS3 and send real STM32 control packets.; echo [SUSPENDED_TEST_ONLY] Do not use this launch for navigation or ground driving.; exec &quot;$@&quot;' --">
+    <rosparam file="$(find spraying_car_base)/config/base.yaml" command="load"/>
+    <param name="dry_run" value="$(arg dry_run)"/>
+    <param name="port" value="$(arg port)"/>
+    <param name="max_speed_duty" value="$(arg max_speed_duty)"/>
+    <param name="max_linear_speed" value="$(arg max_linear_speed)"/>
+    <param name="max_angular_z" value="$(arg max_angular_z)"/>
+    <param name="cmd_timeout" value="$(arg cmd_timeout)"/>
+    <param name="turn_direction_sign" value="$(arg turn_direction_sign)"/>
+    <param name="send_spray_off_on_timeout" value="true"/>
+    <param name="send_turn_center_on_timeout" value="true"/>
+  </node>
+</launch>

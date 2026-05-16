@@ -6,6 +6,7 @@ point_lio_body_frame: aft_mapped
 
 standard_odom_frame: odom
 standard_base_frame: base_link
+tf_child_frame: base_footprint
 lidar_frame: lidar_link
 
 publish_tf: false

@@ -143,6 +143,70 @@ roslaunch spraying_car_base base.launch dry_run:=false port:=/dev/ttyS3
 5. 先发布低速 `/cmd_vel`。
 6. 确认 `cmd_timeout` 停车有效。
 
+## 架空方向验证
+
+阶段 8F 使用专用 launch 做轮子离地测试：
+
+```bash
+roslaunch spraying_car_base base_real_suspended_test.launch dry_run:=true
+```
+
+该 launch 的安全默认值：
+
+- `dry_run=true`，默认不打开 `/dev/ttyS3`。
+- `port=/dev/ttyS3`。
+- `max_speed_duty=8`。
+- `max_linear_speed=0.2`。
+- `max_angular_z=0.5`。
+- `cmd_timeout=0.4`。
+- `send_spray_off_on_timeout=true`。
+- `send_turn_center_on_timeout=true`。
+
+真实架空测试必须由人工显式启动：
+
+```bash
+roslaunch spraying_car_base base_real_suspended_test.launch dry_run:=false port:=/dev/ttyS3
+```
+
+使用前必须确认：
+
+- 车辆已架空，驱动轮离地。
+- Flask 已停止，`/dev/ttyS3` 未被占用。
+- 遥控器可接管，软件急停可用。
+- 喷药关闭。
+- 有人在旁看护。
+
+推荐测试脚本：
+
+```bash
+rosrun spraying_car_tools suspended_base_direction_test.py
+```
+
+该脚本只发布 `/cmd_vel`，不直接操作 STM32 串口，并要求输入确认字符串后才会发布非零速度。
+
+## CDC 与 base_state 状态验证
+
+在真正观察车轮方向前，可以先用 STM32 USB CDC 和 `/spraying_car/base_state` 验证软件状态：
+
+```bash
+rosrun spraying_car_tools stm32_cdc_monitor.py _port:=/dev/ttyACM0 _raw_hex:=true _ascii:=true
+rosrun spraying_car_tools base_state_verification_test.py
+```
+
+边界：
+
+- `/dev/ttyACM0` 只读，只用于 STM32 调试输出。
+- `/dev/ttyS3` 才是真实控制串口。
+- `base_state_verification_test.py` 只发布 `/cmd_vel`，不直接操作串口。
+- 该测试只验证 STM32 软件状态，不证明车轮真实方向。
+- 最终仍必须做架空物理方向观察。
+
+转向状态字段说明：
+
+- `turn_cmd_position` 表示 STM32 最近一次收到的串口转向命令位置，范围 `1..101`，`51` 为中位。
+- `turn_target_encoder` 表示由该目标位置换算出的目标编码器位置。
+- `turn_encoder_position` 表示实际转向编码器反馈。当前未连接步进电机和编码器时该字段不可信，不作为软件状态验证的核心依据。
+
 ## /cmd_vel 映射规则
 
 输入：
@@ -173,8 +237,9 @@ roslaunch spraying_car_base base.launch dry_run:=false port:=/dev/ttyS3
 ## 当前局限
 
 - 旧状态包 `0x05` 和扩展状态包 `0x07` 并存，不能直接替换旧 `0x05`。
-- 扩展状态包能返回转向命令、转向目标编码器、转向编码器读数和控制模式。
-- `turn_encoder_position` 当前来自 TIM5 转向编码器，但底层读取仍是 `int16_t`，后续需要改造为完整 `int32_t` 计数。
+- 扩展状态包能返回最近一次串口转向命令、转向目标编码器、转向编码器读数和控制模式。
+- `turn_cmd_position` 是命令状态，不代表真实机械转向已经到位。
+- `turn_encoder_position` 当前来自 TIM5 转向编码器；未连接步进电机/编码器时该字段不可信，且底层读取仍需后续改造为完整 `int32_t` 计数。
 - `battery_mv = 0`：当前无电池 ADC 采集。
 - `fault_code = 0`：当前无故障码系统。
 - `safety_state = 0`：当前无独立硬件急停输入。

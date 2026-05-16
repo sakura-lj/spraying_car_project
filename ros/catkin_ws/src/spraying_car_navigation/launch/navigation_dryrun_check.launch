@@ -1,0 +1,24 @@
+<launch>
+  <arg name="use_lidar" default="true"/>
+  <arg name="use_point_lio" default="true"/>
+  <arg name="use_localization_bridge" default="true"/>
+  <arg name="bridge_publish_tf" default="false"/>
+  <arg name="use_base" default="true"/>
+  <arg name="base_dry_run" default="true"/>
+  <arg name="use_rviz" default="false"/>
+  <arg name="cmd_vel_topic" default="/cmd_vel"/>
+  <arg name="lidar_port" default="/dev/ttyUSB0"/>
+
+  <!-- Dry-run check only. This launch never sets base_dry_run=false by default. -->
+  <include file="$(find spraying_car_navigation)/launch/navigation_live_slam.launch">
+    <arg name="use_lidar" value="$(arg use_lidar)"/>
+    <arg name="use_point_lio" value="$(arg use_point_lio)"/>
+    <arg name="use_localization_bridge" value="$(arg use_localization_bridge)"/>
+    <arg name="bridge_publish_tf" value="$(arg bridge_publish_tf)"/>
+    <arg name="use_base" value="$(arg use_base)"/>
+    <arg name="base_dry_run" value="$(arg base_dry_run)"/>
+    <arg name="use_rviz" value="$(arg use_rviz)"/>
+    <arg name="cmd_vel_topic" value="$(arg cmd_vel_topic)"/>
+    <arg name="lidar_port" value="$(arg lidar_port)"/>
+  </include>
+</launch>

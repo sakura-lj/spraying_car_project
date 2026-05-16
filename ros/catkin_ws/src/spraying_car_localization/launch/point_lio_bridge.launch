@@ -4,6 +4,7 @@
   <arg name="output_odom_topic" default="/slam_odom"/>
   <arg name="standard_odom_frame" default="odom"/>
   <arg name="standard_base_frame" default="base_link"/>
+  <arg name="tf_child_frame" default="base_footprint"/>
 
   <node pkg="spraying_car_localization"
         type="point_lio_frame_bridge.py"
@@ -15,5 +16,6 @@
     <param name="output_odom_topic" value="$(arg output_odom_topic)"/>
     <param name="standard_odom_frame" value="$(arg standard_odom_frame)"/>
     <param name="standard_base_frame" value="$(arg standard_base_frame)"/>
+    <param name="tf_child_frame" value="$(arg tf_child_frame)"/>
   </node>
 </launch>

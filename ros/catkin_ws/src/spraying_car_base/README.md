@@ -33,6 +33,20 @@ roslaunch spraying_car_base base.launch dry_run:=false port:=/dev/ttyS3
 
 原因：Flask 和 ROS 不能同时占用 `/dev/ttyS3`。
 
+阶段 8F 架空方向验证请使用专用 launch：
+
+```bash
+roslaunch spraying_car_base base_real_suspended_test.launch dry_run:=true
+```
+
+默认仍然 `dry_run=true`。人工确认车辆已架空、Flask 已停止、遥控器可接管后，才允许显式运行：
+
+```bash
+roslaunch spraying_car_base base_real_suspended_test.launch dry_run:=false port:=/dev/ttyS3
+```
+
+该 launch 使用低速限制：`max_speed_duty=8`、`max_linear_speed=0.2`、`max_angular_z=0.5`、`cmd_timeout=0.4`。它不启动导航、L1RM、point_lio、move_base 或 TEB。
+
 当前限制：
 
 - 不发布正式 `/odom`。

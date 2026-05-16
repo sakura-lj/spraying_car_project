@@ -364,6 +364,7 @@ static void processData(uint8_t type, uint8_t* data, int length)
             
         case CMD_TURN_CONTROL: // 转向控制命令
             is_open = 1; // 串口控制时自动开启电源
+            set_control_mode(1); // 转向命令同样标记为串口控制
             set_target_position(data[0]); // 1-101档位
             DEBUG_OLED_ShowString(0, 12, "TURN:");
             DEBUG_OLED_ShowNum(30, 12, data[0], 3);
